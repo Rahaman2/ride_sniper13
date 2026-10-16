@@ -3,15 +3,18 @@ package com.ridesniper.app.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.ridesniper.app.service.OverlayResultHolder
 
 @Composable
-fun DebugScreen() {
+fun DebugScreen(onBack: () -> Unit) {
     val parsed by OverlayResultHolder.lastParseResultFlow.collectAsState()
 
     Column(
@@ -21,7 +24,12 @@ fun DebugScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("OCR Debug", style = MaterialTheme.typography.headlineMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Text("OCR debug", style = MaterialTheme.typography.headlineMedium)
+        }
 
         val p = parsed
         if (p == null) {

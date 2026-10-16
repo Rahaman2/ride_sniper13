@@ -7,6 +7,7 @@ import org.junit.Test
 class RideCalculatorTest {
 
     private val defaultSettings = AppSettings() // PICKY: R9.00/km, R2.00/min, minimum R6.00/km, hard R5.00/km
+    private val costSettings = defaultSettings.copy(includeVehicleCosts = true)
 
     @Test
     fun `basic formulas compute correctly`() {
@@ -14,15 +15,15 @@ class RideCalculatorTest {
             payout = 200.0, pickupKm = 2.0, tripKm = 8.0,
             pickupMinutes = 5.0, tripMinutes = 15.0
         )
-        val result = RideCalculator.calculate(input, defaultSettings)
+        val result = RideCalculator.calculate(input, costSettings)
 
         assertEquals(10.0, result.totalKm, 0.001)
         assertEquals(20.0, result.totalMinutes, 0.001)
         assertEquals(20.0, result.grossPerKm, 0.001)
         assertEquals(10.0, result.grossPerMinute, 0.001)
 
-        val expectedFuelCost = 10.0 * defaultSettings.litresPer100Km / 100.0 * defaultSettings.fuelPricePerLitre
-        val expectedWearCost = 10.0 * defaultSettings.wearCostPerKm
+        val expectedFuelCost = 10.0 * costSettings.litresPer100Km / 100.0 * costSettings.fuelPricePerLitre
+        val expectedWearCost = 10.0 * costSettings.wearCostPerKm
         assertEquals(expectedFuelCost, result.fuelCost, 0.001)
         assertEquals(expectedWearCost, result.wearCost, 0.001)
         assertEquals(200.0 - expectedFuelCost - expectedWearCost, result.estimatedProfit, 0.001)
@@ -31,11 +32,22 @@ class RideCalculatorTest {
     @Test
     fun `fuel cost uses litres per 100 km`() {
         // 100 km at 6.5 L/100 km and R22/litre = 6.5 L * R22 = R143.
-        val settings = defaultSettings.copy(fuelPricePerLitre = 22.0, litresPer100Km = 6.5)
+        val settings = costSettings.copy(fuelPricePerLitre = 22.0, litresPer100Km = 6.5)
         val input = RideOfferInput(payout = 1000.0, pickupKm = 0.0, tripKm = 100.0, pickupMinutes = 0.0, tripMinutes = 90.0)
         val result = RideCalculator.calculate(input, settings)
         assertEquals(143.0, result.fuelCost, 0.001)
         assertEquals(1.43, result.fuelCostPerKm, 0.001)
+    }
+
+    @Test
+    fun `vehicle costs are ignored when the feature is off`() {
+        val input = RideOfferInput(payout = 80.0, pickupKm = 2.0, tripKm = 8.0, pickupMinutes = 5.0, tripMinutes = 15.0)
+        val result = RideCalculator.calculate(input, defaultSettings.copy(includeVehicleCosts = false))
+        assertEquals(0.0, result.fuelCost, 0.001)
+        assertEquals(0.0, result.wearCost, 0.001)
+        assertEquals(80.0, result.estimatedProfit, 0.001)
+        assertEquals(240.0, result.netPerHour, 0.001)
+        assertFalse(result.warnings.contains(WarningFlag.FUEL_HEAVY))
     }
 
     @Test

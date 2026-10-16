@@ -9,6 +9,9 @@ package com.ridesniper.app.model
  * the Home screen.
  */
 data class AppSettings(
+    // Not stored: follows Features.VEHICLE_COSTS so the build decides. Tests can override it.
+    val includeVehicleCosts: Boolean = Features.VEHICLE_COSTS,
+
     val fuelPricePerLitre: Double = 22.00,
     val litresPer100Km: Double = 6.5,
     val wearCostPerKm: Double = 1.00,

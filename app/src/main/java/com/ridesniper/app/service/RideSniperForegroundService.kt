@@ -88,8 +88,13 @@ class RideSniperForegroundService : Service() {
                     captureManager.start(resultCode, resultData, projectionManager)
                 }
                 overlayController.showBubble(currentSettings.overlaySizeDp, currentSettings.overlayPositionX, currentSettings.overlayPositionY)
+                OverlayResultHolder.serviceRunning = true
             }
-            ACTION_ANALYZE -> runAnalysis()
+            ACTION_ANALYZE -> {
+                // From the notification button; bubble taps show this themselves.
+                if (!isPaused) overlayController.showAnalyzing()
+                runAnalysis()
+            }
             ACTION_PAUSE -> {
                 isPaused = true
                 updateNotification()
@@ -105,14 +110,27 @@ class RideSniperForegroundService : Service() {
         return START_STICKY
     }
 
+    /**
+     * Every path through here ends with something visible on the overlay
+     * (a result, "no offer", or an error), so a tap never goes unanswered.
+     */
     private fun runAnalysis() {
-        if (isPaused) return
+        if (isPaused) {
+            overlayController.showMessage("Paused. Resume from the notification.")
+            return
+        }
+        if (!captureManager.isActive()) {
+            overlayController.showMessage("Screen reading is off. Open Ride Sniper and tap Start.", isError = true, autoDismissMillis = 4000)
+            return
+        }
         overlayController.setBusy(true)
         serviceScope.launch {
             try {
                 val bitmap = captureManager.captureFrame()
                 if (bitmap == null) {
-                    overlayController.setBusy(false)
+                    withContext(Dispatchers.Main) {
+                        overlayController.showMessage("Couldn't see the screen. Try again.", isError = true)
+                    }
                     return@launch
                 }
                 val (text, mlKitConfidence) = ocrEngine.recognize(bitmap)
@@ -128,19 +146,28 @@ class RideSniperForegroundService : Service() {
                     withContext(Dispatchers.Main) {
                         overlayController.showNoOfferDetected()
                     }
-                } else if (parsed.confidence < currentSettings.ocrConfidenceThreshold) {
-                    withContext(Dispatchers.Main) {
-                        onNeedsManualCorrection?.invoke(parsed)
-                    }
                 } else {
+                    // A hard-to-read offer still gets an answer on screen right away (marked as
+                    // uncertain), and the correction form waits in the app for a long-press.
+                    // It isn't saved to history until the driver confirms the numbers.
+                    val lowConfidence = parsed.confidence < currentSettings.ocrConfidenceThreshold
                     val result = RideCalculator.calculate(input, currentSettings, ZoneRating.NEUTRAL)
                     OverlayResultHolder.lastCalculationResult = result
                     withContext(Dispatchers.Main) {
-                        overlayController.showResult(result)
+                        overlayController.showResult(result, lowConfidence)
                         vibrationHelper.vibrateFor(result.recommendation, currentSettings.vibrationEnabled)
+                        if (lowConfidence) onNeedsManualCorrection?.invoke(parsed)
                     }
-                    val app = application as RideSniperApp
-                    app.rideRepository.saveResult(result)
+                    if (!lowConfidence) {
+                        val app = application as RideSniperApp
+                        app.rideRepository.saveResult(result)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    overlayController.showMessage("Something went wrong reading the offer. Try again.", isError = true)
                 }
             } finally {
                 overlayController.setBusy(false)
@@ -197,6 +224,7 @@ class RideSniperForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        OverlayResultHolder.serviceRunning = false
         overlayController.hideBubble()
         captureManager.stop()
         ocrEngine.close()

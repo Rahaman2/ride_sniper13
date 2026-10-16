@@ -10,13 +10,21 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -26,6 +34,7 @@ import com.ridesniper.app.RideSniperApp
 import com.ridesniper.app.service.RideSniperForegroundService
 import com.ridesniper.app.ui.screens.*
 import com.ridesniper.app.ui.theme.RideSniperTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -33,9 +42,13 @@ class MainActivity : ComponentActivity() {
         RideSniperViewModel.Factory(application as RideSniperApp)
     }
 
+    // Re-checked in onResume, because the driver grants this in Android's Settings app
+    // and comes back; checking only once left the "permission needed" card stuck.
+    private val overlayGranted = mutableStateOf(false)
+
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { /* user returns from Settings; re-check on resume */ }
+    ) { /* onResume re-checks */ }
 
     private val projectionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -51,6 +64,9 @@ class MainActivity : ComponentActivity() {
             } else {
                 startService(serviceIntent)
             }
+            viewModel.notify("Ride Sniper is on. Open Uber Driver and tap the bubble on an offer.")
+        } else {
+            viewModel.notify("Screen reading wasn't allowed, so Ride Sniper can't read offers.")
         }
     }
 
@@ -59,7 +75,10 @@ class MainActivity : ComponentActivity() {
     ) { /* proceed regardless; notification is best-effort on Android 13+ */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
+        // Hold the splash until saved settings are loaded, so the first frame is real content.
+        splash.setKeepOnScreenCondition { !viewModel.isReady.value }
 
         RideSniperForegroundService.onNeedsManualCorrection = { parsed ->
             runOnUiThread { viewModel.requestManualCorrection(parsed) }
@@ -69,17 +88,29 @@ class MainActivity : ComponentActivity() {
             RideSniperTheme {
                 RideSniperRoot(
                     viewModel = viewModel,
-                    hasOverlayPermission = { hasOverlayPermission() },
+                    hasOverlayPermission = overlayGranted.value,
                     onRequestOverlayPermission = { requestOverlayPermission() },
-                    onStartAnalyzerService = { requestNotificationPermissionThenProjection() }
+                    onStartAnalyzerService = { requestNotificationPermissionThenProjection() },
+                    onStopAnalyzerService = { stopAnalyzerService() }
                 )
             }
         }
     }
 
-    private fun hasOverlayPermission(): Boolean = Settings.canDrawOverlays(this)
+    override fun onResume() {
+        super.onResume()
+        val granted = Settings.canDrawOverlays(this)
+        if (granted && !overlayGranted.value) {
+            // Only announce a change, not every resume.
+            if (overlayPermissionRequested) viewModel.notify("Bubble allowed. You're ready to start.")
+        }
+        overlayGranted.value = granted
+    }
+
+    private var overlayPermissionRequested = false
 
     private fun requestOverlayPermission() {
+        overlayPermissionRequested = true
         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
         overlayPermissionLauncher.launch(intent)
     }
@@ -94,36 +125,83 @@ class MainActivity : ComponentActivity() {
         val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
     }
+
+    private fun stopAnalyzerService() {
+        val intent = Intent(this, RideSniperForegroundService::class.java).apply {
+            action = RideSniperForegroundService.ACTION_STOP
+        }
+        startService(intent)
+        viewModel.notify("Ride Sniper stopped")
+    }
 }
+
+private const val NAV_IN_MILLIS = 240
+private const val NAV_OUT_MILLIS = 140
 
 @Composable
 fun RideSniperRoot(
     viewModel: RideSniperViewModel,
-    hasOverlayPermission: () -> Boolean,
+    hasOverlayPermission: Boolean,
     onRequestOverlayPermission: () -> Unit,
-    onStartAnalyzerService: () -> Unit
+    onStartAnalyzerService: () -> Unit,
+    onStopAnalyzerService: () -> Unit
 ) {
     val navController = rememberNavController()
-    Scaffold(
-        bottomBar = { RideSniperBottomBar(navController) }
-    ) { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = "home",
-            modifier = Modifier.padding(padding)
-        ) {
-            composable("home") {
-                HomeScreen(
-                    viewModel = viewModel,
-                    hasOverlayPermission = hasOverlayPermission(),
-                    onRequestOverlayPermission = onRequestOverlayPermission,
-                    onStartAnalyzer = onStartAnalyzerService
-                )
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { message ->
+            // Newest message wins; don't queue a backlog of old confirmations.
+            snackbarHostState.currentSnackbarData?.dismiss()
+            launch { snackbarHostState.showSnackbar(message) }
+        }
+    }
+
+    // The whole app eases in once after the splash screen, instead of appearing all at once.
+    val appear = remember { MutableTransitionState(false).apply { targetState = true } }
+    AnimatedVisibility(
+        visibleState = appear,
+        enter = fadeIn(tween(420)) + slideInVertically(tween(420)) { it / 30 }
+    ) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = {
+                SnackbarHost(snackbarHostState) { data ->
+                    Snackbar(
+                        snackbarData = data,
+                        shape = MaterialTheme.shapes.medium,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            },
+            bottomBar = { RideSniperBottomBar(navController) }
+        ) { padding ->
+            NavHost(
+                navController = navController,
+                startDestination = "home",
+                modifier = Modifier.padding(padding),
+                enterTransition = { fadeIn(tween(NAV_IN_MILLIS)) + slideInVertically(tween(NAV_IN_MILLIS)) { it / 40 } },
+                exitTransition = { fadeOut(tween(NAV_OUT_MILLIS)) },
+                popEnterTransition = { fadeIn(tween(NAV_IN_MILLIS)) },
+                popExitTransition = { fadeOut(tween(NAV_OUT_MILLIS)) }
+            ) {
+                composable("home") {
+                    HomeScreen(
+                        viewModel = viewModel,
+                        hasOverlayPermission = hasOverlayPermission,
+                        onRequestOverlayPermission = onRequestOverlayPermission,
+                        onStartAnalyzer = onStartAnalyzerService,
+                        onStopAnalyzer = onStopAnalyzerService
+                    )
+                }
+                composable("history") { HistoryScreen(viewModel) }
+                composable("stats") { StatsScreen(viewModel) }
+                composable("settings") {
+                    SettingsScreen(viewModel, onOpenDebug = { navController.navigate("debug") })
+                }
+                composable("debug") { DebugScreen(onBack = { navController.popBackStack() }) }
             }
-            composable("history") { HistoryScreen(viewModel) }
-            composable("stats") { StatsScreen(viewModel) }
-            composable("settings") { SettingsScreen(viewModel) }
-            composable("debug") { DebugScreen() }
         }
     }
 
@@ -142,17 +220,20 @@ private fun RideSniperBottomBar(navController: NavController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val current = backStackEntry?.destination?.route
 
-    NavigationBar {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
+    ) {
         val items = listOf(
             Triple("home", "Home", Icons.Filled.Home),
             Triple("history", "History", Icons.Filled.History),
             Triple("stats", "Stats", Icons.Filled.BarChart),
-            Triple("settings", "Settings", Icons.Filled.Settings),
-            Triple("debug", "Debug", Icons.Filled.BugReport)
+            Triple("settings", "Settings", Icons.Filled.Settings)
         )
         items.forEach { (route, label, icon) ->
             NavigationBarItem(
-                selected = current == route,
+                // Debug is reached from Settings, so keep the Settings tab lit while on it.
+                selected = current == route || (route == "settings" && current == "debug"),
                 onClick = {
                     navController.navigate(route) {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
@@ -161,7 +242,14 @@ private fun RideSniperBottomBar(navController: NavController) {
                     }
                 },
                 icon = { Icon(icon, contentDescription = label) },
-                label = { Text(label) }
+                label = { Text(label) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
         }
     }

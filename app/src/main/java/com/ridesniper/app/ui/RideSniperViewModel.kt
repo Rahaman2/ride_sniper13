@@ -26,6 +26,20 @@ class RideSniperViewModel(
     val settings: StateFlow<AppSettings> =
         settingsDataStore.settingsFlow.stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
+    /** Becomes true once saved settings have loaded; the splash screen stays up until then. */
+    val isReady: StateFlow<Boolean> =
+        settingsDataStore.settingsFlow.map { true }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val serviceRunning: StateFlow<Boolean> = OverlayResultHolder.serviceRunningFlow
+
+    // Short confirmations ("Saved", "Marked as accepted") shown as a snackbar by the root screen.
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val messages: SharedFlow<String> = _messages
+
+    fun notify(message: String) {
+        _messages.tryEmit(message)
+    }
+
     private val statsFilter = MutableStateFlow(StatsFilter.LAST_7_DAYS)
     val currentStatsFilter: StateFlow<StatsFilter> = statsFilter
 
@@ -42,8 +56,10 @@ class RideSniperViewModel(
     val latestResult: StateFlow<RideCalculationResult?> = _latestResult
 
     init {
+        // history re-emits whenever the filter changes or a ride is saved/updated,
+        // so stats stay current without manual refreshes.
         viewModelScope.launch {
-            statsFilter.collect { filter -> _stats.value = repository.computeStats(filter) }
+            history.collect { _stats.value = repository.computeStats(statsFilter.value) }
         }
         viewModelScope.launch {
             OverlayResultHolder.lastCalculationResultFlow.collect { _latestResult.value = it }
@@ -52,11 +68,6 @@ class RideSniperViewModel(
 
     fun setStatsFilter(filter: StatsFilter) {
         statsFilter.value = filter
-        viewModelScope.launch { _stats.value = repository.computeStats(filter) }
-    }
-
-    fun refreshStats() {
-        viewModelScope.launch { _stats.value = repository.computeStats(statsFilter.value) }
     }
 
     fun requestManualCorrection(parsed: OcrParseResult) {
@@ -76,7 +87,7 @@ class RideSniperViewModel(
             OverlayResultHolder.lastCalculationResult = result
             repository.saveResult(result)
             _pendingCorrection.value = null
-            refreshStats()
+            notify("Offer recalculated")
         }
     }
 
@@ -85,7 +96,7 @@ class RideSniperViewModel(
     fun markRideAccepted(id: Long, accepted: Boolean) {
         viewModelScope.launch {
             repository.markAccepted(id, accepted)
-            refreshStats()
+            notify(if (accepted) "Marked as accepted" else "Marked as declined")
         }
     }
 
@@ -94,7 +105,10 @@ class RideSniperViewModel(
     }
 
     fun applyStrategyPreset(preset: StrategyPreset) {
-        viewModelScope.launch { settingsDataStore.applyStrategyPreset(preset) }
+        viewModelScope.launch {
+            settingsDataStore.applyStrategyPreset(preset)
+            notify("${preset.label} strategy on")
+        }
     }
 
     fun setFuelPrice(price: Double) {

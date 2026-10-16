@@ -3,16 +3,17 @@ package com.ridesniper.app.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.ridesniper.app.data.repository.RideStats
-import com.ridesniper.app.data.repository.StatsFilter
+import com.ridesniper.app.model.Features
 import com.ridesniper.app.ui.RideSniperViewModel
+import com.ridesniper.app.ui.components.*
 import com.ridesniper.app.util.Fmt
-import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun StatsScreen(viewModel: RideSniperViewModel) {
@@ -23,74 +24,82 @@ fun StatsScreen(viewModel: RideSniperViewModel) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Statistics", style = MaterialTheme.typography.headlineMedium)
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatsFilter.entries.forEach { f ->
-                FilterChip(
-                    selected = filter == f,
-                    onClick = { viewModel.setStatsFilter(f) },
-                    label = { Text(f.label) }
-                )
-            }
-        }
+        ScreenHeader("Stats", "How your offers have paid.")
+        FilterRow(filter, onSelect = { viewModel.setStatsFilter(it) })
 
         if (stats.offersAnalyzed == 0) {
-            Text("No data in this range yet.", color = MaterialTheme.colorScheme.secondary)
+            RsCard {
+                EmptyState(
+                    icon = Icons.Filled.BarChart,
+                    title = "Nothing to show yet",
+                    body = "Analyse a few offers and your averages will appear here."
+                )
+            }
             return@Column
         }
 
-        StatSection("Volume") {
-            StatLine("Offers analysed", "${stats.offersAnalyzed}")
-            StatLine("Offers accepted", "${stats.offersAccepted}")
-            StatLine("Offers declined", "${stats.offersDeclined}")
-            StatLine("Acceptance rate", "%.0f%%".format(Locale.US, stats.acceptanceRate * 100))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatTile("Offers", "${stats.offersAnalyzed}", Modifier.weight(1f))
+            StatTile("Accepted", "${(stats.acceptanceRate * 100).roundToInt()}%", Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatTile("Avg per km", Fmt.money(stats.avgGrossPerKm), Modifier.weight(1f))
+            StatTile(if (Features.VEHICLE_COSTS) "Avg net / hour" else "Avg per hour", Fmt.money(stats.avgNetPerHour), Modifier.weight(1f))
         }
 
         StatSection("Averages") {
-            StatLine("Avg gross R/km", Fmt.money(stats.avgGrossPerKm))
-            StatLine("Avg gross R/minute", Fmt.money(stats.avgGrossPerMinute))
-            StatLine("Avg net R/km", Fmt.money(stats.avgNetPerKm))
-            StatLine("Avg net R/hour", Fmt.money(stats.avgNetPerHour))
-            StatLine("Avg payout", Fmt.money(stats.avgPayout))
-            StatLine("Avg pickup distance", Fmt.km(stats.avgPickupKm))
-            StatLine("Avg trip distance", Fmt.km(stats.avgTripKm))
-            StatLine("Avg total distance", Fmt.km(stats.avgTotalKm))
+            StatLine("Payout", Fmt.money(stats.avgPayout))
+            StatLine("Per minute", Fmt.money(stats.avgGrossPerMinute))
+            if (Features.VEHICLE_COSTS) StatLine("Net per km", Fmt.money(stats.avgNetPerKm))
+            StatLine("Pickup distance", Fmt.km(stats.avgPickupKm))
+            StatLine("Trip distance", Fmt.km(stats.avgTripKm))
+            StatLine("Total distance", Fmt.km(stats.avgTotalKm))
         }
 
-        StatSection("Declines saved you") {
-            StatLine("Kilometres avoided", Fmt.km(stats.kmAvoidedByDeclining))
-            StatLine("Fuel avoided", Fmt.money(stats.fuelAvoided))
-            StatLine("Wear avoided", Fmt.money(stats.wearAvoided))
-            StatLine("Money preserved", Fmt.money(stats.moneyPreservedByDeclining))
+        StatSection("Your decisions") {
+            StatLine("Accepted", "${stats.offersAccepted}")
+            StatLine("Declined", "${stats.offersDeclined}")
+            StatLine("Kilometres avoided by declining", Fmt.km(stats.kmAvoidedByDeclining))
+            if (Features.VEHICLE_COSTS) {
+                StatLine("Fuel avoided", Fmt.money(stats.fuelAvoided))
+                StatLine("Wear avoided", Fmt.money(stats.wearAvoided))
+                StatLine("Money preserved", Fmt.money(stats.moneyPreservedByDeclining))
+            }
         }
 
-        StatSection("Extremes") {
-            stats.bestRide?.let { StatLine("Best ride profit", Fmt.money(it.estimatedProfit)) }
-            stats.worstRide?.let { StatLine("Worst ride profit", Fmt.money(it.estimatedProfit)) }
-            stats.mostProfitableHour?.let { StatLine("Most profitable hour", Fmt.hour(it)) }
-            stats.leastProfitableHour?.let { StatLine("Least profitable hour", Fmt.hour(it)) }
+        StatSection("Best and worst") {
+            val amountOf = { profit: Double, payout: Double -> Fmt.money(if (Features.VEHICLE_COSTS) profit else payout) }
+            stats.bestRide?.let { StatLine("Best ride", amountOf(it.estimatedProfit, it.offerAmount)) }
+            stats.worstRide?.let { StatLine("Worst ride", amountOf(it.estimatedProfit, it.offerAmount)) }
+            stats.mostProfitableHour?.let { StatLine("Best hour to drive", Fmt.hour(it)) }
+            stats.leastProfitableHour?.let { StatLine("Weakest hour", Fmt.hour(it)) }
         }
     }
 }
 
 @Composable
+private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
+    RsCard(modifier = modifier, contentPadding = PaddingValues(16.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.headlineMedium)
+    }
+}
+
+@Composable
 private fun StatSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            content()
-        }
+    RsCard {
+        SectionLabel(title)
+        content()
     }
 }
 
 @Composable
 private fun StatLine(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = MaterialTheme.colorScheme.secondary)
-        Text(value, fontWeight = FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleSmall)
     }
 }

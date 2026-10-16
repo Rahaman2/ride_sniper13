@@ -22,11 +22,14 @@ object RideCalculator {
         val grossPerKm = input.payout / totalKm
         val grossPerMinute = input.payout / totalMinutes
 
+        // With vehicle costs switched off, profit equals the payout and every "net" figure is gross.
+        val costs = settings.includeVehicleCosts
         // L/100 km -> litres per km, times R/litre.
-        val fuelCostPerKm = settings.fuelPricePerLitre * settings.litresPer100Km / 100.0
+        val fuelCostPerKm = if (costs) settings.fuelPricePerLitre * settings.litresPer100Km / 100.0 else 0.0
+        val wearCostPerKm = if (costs) settings.wearCostPerKm else 0.0
         val fuelCost = fuelCostPerKm * totalKm
-        val wearCost = settings.wearCostPerKm * totalKm
-        val totalVehicleCostPerKm = fuelCostPerKm + settings.wearCostPerKm
+        val wearCost = wearCostPerKm * totalKm
+        val totalVehicleCostPerKm = fuelCostPerKm + wearCostPerKm
 
         val estimatedProfit = input.payout - fuelCost - wearCost
         val netPerKm = estimatedProfit / totalKm
@@ -92,7 +95,7 @@ object RideCalculator {
             fuelCost = fuelCost,
             wearCost = wearCost,
             fuelCostPerKm = fuelCostPerKm,
-            wearCostPerKm = settings.wearCostPerKm,
+            wearCostPerKm = wearCostPerKm,
             totalVehicleCostPerKm = totalVehicleCostPerKm,
             estimatedProfit = estimatedProfit,
             netPerKm = netPerKm,
@@ -156,7 +159,7 @@ object RideCalculator {
 
         // High wear: long total mileage combined with weak net-per-km.
         val netPerKm = estimatedProfit / totalKm
-        if (totalKm > settings.longRideThresholdKm && netPerKm < HIGH_WEAR_NET_PER_KM) flags += WarningFlag.HIGH_WEAR
+        if (settings.includeVehicleCosts && totalKm > settings.longRideThresholdKm && netPerKm < HIGH_WEAR_NET_PER_KM) flags += WarningFlag.HIGH_WEAR
 
         if (estimatedProfit < BAD_DEAL_MIN_PROFIT || netPerKm < BAD_DEAL_NET_PER_KM) flags += WarningFlag.BAD_DEAL
 

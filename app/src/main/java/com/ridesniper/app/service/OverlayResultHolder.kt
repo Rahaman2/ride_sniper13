@@ -23,4 +23,11 @@ object OverlayResultHolder {
         get() = _lastCalculationResult.value
         set(value) { _lastCalculationResult.value = value }
     val lastCalculationResultFlow: StateFlow<RideCalculationResult?> = _lastCalculationResult
+
+    // True while the foreground service has the bubble up, so the app can show Running / Stop.
+    private val _serviceRunning = MutableStateFlow(false)
+    var serviceRunning: Boolean
+        get() = _serviceRunning.value
+        set(value) { _serviceRunning.value = value }
+    val serviceRunningFlow: StateFlow<Boolean> = _serviceRunning
 }

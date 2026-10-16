@@ -9,26 +9,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -86,7 +69,7 @@ class OverlayController(private val context: Context) {
             setViewTreeViewModelStoreOwner(lifecycleOwner)
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setContent {
-                RsBubble(sizeDp = sizeDp, isBusy = busyState.value)
+                RsBubble(sizeDp = sizeDp, isBusy = busyState.value, lastRecommendation = lastRecommendationState.value)
             }
             setOnTouchListener(dragAndClickListener(params))
         }
@@ -115,7 +98,7 @@ class OverlayController(private val context: Context) {
         busyState.value = busy
     }
 
-    fun showResult(result: RideCalculationResult, autoDismissMillis: Long = 9000) {
+    fun showResult(result: RideCalculationResult, lowConfidence: Boolean = false, autoDismissMillis: Long = 9000) {
         hideResult()
         lastRecommendationState.value = result.recommendation
 
@@ -136,13 +119,14 @@ class OverlayController(private val context: Context) {
             setViewTreeViewModelStoreOwner(lifecycleOwner)
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setContent {
-                ResultCard(result = result, onDismiss = { hideResult() })
+                ResultCard(result = result, lowConfidence = lowConfidence, onDismiss = { hideResult() })
             }
         }
         cardView = view
         windowManager.addView(view, params)
 
-        view.postDelayed({ hideResult() }, autoDismissMillis)
+        // Only close this card; a newer card may have replaced it in the meantime.
+        view.postDelayed({ if (cardView === view) hideResult() }, autoDismissMillis)
     }
 
     /**
@@ -152,21 +136,20 @@ class OverlayController(private val context: Context) {
      * showNoOfferDetected() is called for this tap.
      */
     fun showAnalyzing() {
-        showTransientMessage("Analysing…", autoDismissMillis = 6000)
+        showTransientMessage("Reading offer…", MessageKind.PROGRESS, autoDismissMillis = 8000)
     }
 
-    /**
-     * Ready for the foreground service to call once it determines OCR found
-     * no usable offer on screen at all (as opposed to a partial parse that
-     * goes to the manual correction sheet instead). Not yet wired up: doing
-     * so requires a small addition in RideSniperForegroundService.kt, which
-     * was intentionally left untouched pending your confirmation.
-     */
+    /** Called when OCR found no usable ride offer on screen at all. */
     fun showNoOfferDetected() {
-        showTransientMessage("No offer detected", autoDismissMillis = 2200)
+        showTransientMessage("No ride offer on screen", MessageKind.INFO, autoDismissMillis = 2500)
     }
 
-    private fun showTransientMessage(text: String, autoDismissMillis: Long) {
+    /** Any other short status for the driver, e.g. paused or a capture error. */
+    fun showMessage(text: String, isError: Boolean = false, autoDismissMillis: Long = 3000) {
+        showTransientMessage(text, if (isError) MessageKind.ERROR else MessageKind.INFO, autoDismissMillis)
+    }
+
+    private fun showTransientMessage(text: String, kind: MessageKind, autoDismissMillis: Long) {
         hideResult()
 
         val params = WindowManager.LayoutParams(
@@ -185,12 +168,13 @@ class OverlayController(private val context: Context) {
             setViewTreeLifecycleOwner(lifecycleOwner)
             setViewTreeViewModelStoreOwner(lifecycleOwner)
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
-            setContent { MessageCard(text) }
+            setContent { MessageCard(text, kind) }
         }
         cardView = view
         windowManager.addView(view, params)
 
-        view.postDelayed({ hideResult() }, autoDismissMillis)
+        // Only close this card; a newer card may have replaced it in the meantime.
+        view.postDelayed({ if (cardView === view) hideResult() }, autoDismissMillis)
     }
 
     fun hideResult() {
@@ -282,41 +266,3 @@ class OverlayController(private val context: Context) {
     }
 }
 
-private val NeonPink = Color(0xFFFF15C6)
-private val NeonPinkGlow = Color(0xFFFF8FE0)
-
-@Composable
-private fun RsBubble(sizeDp: Int, isBusy: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(sizeDp.dp)
-            .clip(CircleShape)
-            .background(NeonPink)
-            .border(BorderStroke(3.dp, NeonPinkGlow), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = if (isBusy) "…" else "RS",
-            color = Color.White,
-            fontWeight = FontWeight.Black,
-            fontSize = (sizeDp / 3.2).sp
-        )
-    }
-}
-
-@Composable
-private fun MessageCard(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1C1C1C))
-            .padding(horizontal = 20.dp, vertical = 14.dp)
-    ) {
-        Text(
-            text = text,
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp
-        )
-    }
-}
