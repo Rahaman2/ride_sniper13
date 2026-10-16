@@ -38,6 +38,15 @@ fun labelFor(rec: Recommendation): String = when (rec) {
     Recommendation.HARD_DECLINE -> "❌ HARD DECLINE"
 }
 
+/** Headline the driver reads first: what they keep after fuel and wear. */
+fun takeHomeLabel(result: RideCalculationResult): String =
+    if (result.estimatedProfit >= 0) "You keep ~${Fmt.money(result.estimatedProfit)}"
+    else "You lose ~${Fmt.money(-result.estimatedProfit)}"
+
+/** "R80.00 offer − R14.30 fuel − R11.50 wear", so the headline number can be trusted. */
+fun costBreakdown(result: RideCalculationResult): String =
+    "${Fmt.money(result.input.payout)} offer − ${Fmt.money(result.fuelCost)} fuel − ${Fmt.money(result.wearCost)} wear"
+
 @Composable
 fun BubbleView(sizeDp: Int, isBusy: Boolean, lastRecommendation: Recommendation?) {
     val bg = lastRecommendation?.let { colorFor(it) } ?: Color(0xFF2A2A2A)
@@ -76,10 +85,21 @@ fun ResultCard(result: RideCalculationResult, onDismiss: () -> Unit) {
                 fontSize = 26.sp
             )
             Text(
+                text = takeHomeLabel(result),
+                color = if (result.estimatedProfit >= 0) Color.White else RedDecline,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = costBreakdown(result),
+                color = Color(0xFF888888),
+                fontSize = 12.sp
+            )
+            Text(
                 text = "${Fmt.perKm(result.grossPerKm)}   ${Fmt.perMinute(result.grossPerMinute)}",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
+                color = Color(0xFFBBBBBB),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
             )
             Divider()
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -92,11 +112,7 @@ fun ResultCard(result: RideCalculationResult, onDismiss: () -> Unit) {
                 StatColumn("Trip", "${Fmt.km(result.input.tripKm)} / ${Fmt.minutes(result.input.tripMinutes)}")
             }
             Divider()
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                StatColumn("Fuel", Fmt.money(result.fuelCost))
-                StatColumn("Wear", Fmt.money(result.wearCost))
-                StatColumn("Net profit", Fmt.money(result.estimatedProfit))
-            }
+            // Fuel, wear and net profit are already in the headline and breakdown above.
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 StatColumn("Net/km", Fmt.money(result.netPerKm))
                 StatColumn("Net/hr", Fmt.money(result.netPerHour))

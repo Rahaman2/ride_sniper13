@@ -2,6 +2,7 @@ package com.ridesniper.app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalGasStation
@@ -10,17 +11,26 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ridesniper.app.model.Recommendation
 import com.ridesniper.app.model.RideCalculationResult
 import com.ridesniper.app.model.StrategyPreset
+import com.ridesniper.app.overlay.costBreakdown
+import com.ridesniper.app.overlay.takeHomeLabel
 import com.ridesniper.app.ui.RideSniperViewModel
 import com.ridesniper.app.ui.theme.DeclineRed
 import com.ridesniper.app.ui.theme.MaybeYellow
 import com.ridesniper.app.ui.theme.TakeGreen
 import com.ridesniper.app.util.Fmt
+
+/** Sanity bounds for a typed fuel price, in rand per litre; catches typos like "225" or "2.25". */
+private val FUEL_PRICE_RANGE = 5.0..60.0
+
+private data class SaveMessage(val text: String, val isError: Boolean)
 
 @Composable
 fun HomeScreen(
@@ -32,6 +42,8 @@ fun HomeScreen(
     val settings by viewModel.settings.collectAsState()
     val latestResult by viewModel.latestResult.collectAsState()
     var fuelPriceText by remember(settings.fuelPricePerLitre) { mutableStateOf(Fmt.number(settings.fuelPricePerLitre)) }
+    var fuelSaveMessage by remember { mutableStateOf<SaveMessage?>(null) }
+    val focusManager = LocalFocusManager.current
 
     Column(
         modifier = Modifier
@@ -69,14 +81,33 @@ fun HomeScreen(
                     Text(Fmt.CURRENCY, style = MaterialTheme.typography.headlineMedium)
                     OutlinedTextField(
                         value = fuelPriceText,
-                        onValueChange = { fuelPriceText = it },
+                        onValueChange = {
+                            fuelPriceText = it
+                            fuelSaveMessage = null
+                        },
                         modifier = Modifier.width(120.dp),
-                        singleLine = true
+                        singleLine = true,
+                        isError = fuelSaveMessage?.isError == true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                     )
                     Text("/${Fmt.FUEL_UNIT}", style = MaterialTheme.typography.titleLarge)
                     Button(onClick = {
-                        Fmt.parseDecimal(fuelPriceText)?.let { viewModel.setFuelPrice(it) }
+                        val price = Fmt.parseDecimal(fuelPriceText)
+                        fuelSaveMessage = if (price == null || price !in FUEL_PRICE_RANGE) {
+                            SaveMessage("Enter a price per litre, like 22.50", isError = true)
+                        } else {
+                            viewModel.setFuelPrice(price)
+                            focusManager.clearFocus()
+                            SaveMessage("Saved. Profit is now worked out with ${Fmt.money(price)}/${Fmt.FUEL_UNIT}.", isError = false)
+                        }
                     }) { Text("Save") }
+                }
+                fuelSaveMessage?.let { msg ->
+                    Text(
+                        msg.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (msg.isError) MaterialTheme.colorScheme.error else TakeGreen
+                    )
                 }
             }
         }
@@ -147,12 +178,19 @@ fun ResultHud(result: RideCalculationResult) {
             fontSize = 64.sp
         )
         Text(
-            "${Fmt.perKm(result.grossPerKm)}   ·   ${Fmt.perMinute(result.grossPerMinute)}",
-            style = MaterialTheme.typography.headlineMedium
+            takeHomeLabel(result),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (result.estimatedProfit >= 0) Color.Unspecified else DeclineRed
         )
         Text(
-            "${Fmt.money(result.estimatedProfit)} estimated profit   ·   ${Fmt.perHour(result.netPerHour)} net",
-            style = MaterialTheme.typography.titleLarge,
+            costBreakdown(result),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.secondary
+        )
+        Text(
+            "${Fmt.perKm(result.grossPerKm)}   ·   ${Fmt.perMinute(result.grossPerMinute)}   ·   ${Fmt.perHour(result.netPerHour)} net",
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.secondary
         )
 
