@@ -2,7 +2,7 @@ name: Build Ride Sniper APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, localize-za ]
   workflow_dispatch:
 
 jobs:
