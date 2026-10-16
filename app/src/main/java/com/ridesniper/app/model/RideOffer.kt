@@ -6,8 +6,8 @@ package com.ridesniper.app.model
  */
 data class RideOfferInput(
     val payout: Double,
-    val pickupMiles: Double,
-    val tripMiles: Double,
+    val pickupKm: Double,
+    val tripKm: Double,
     val pickupMinutes: Double,
     val tripMinutes: Double,
     val destinationText: String = "",
@@ -24,22 +24,22 @@ data class RideOfferInput(
  */
 data class RideCalculationResult(
     val input: RideOfferInput,
-    val totalMiles: Double,
+    val totalKm: Double,
     val totalMinutes: Double,
-    val grossPerMile: Double,
+    val grossPerKm: Double,
     val grossPerMinute: Double,
     val fuelCost: Double,
     val wearCost: Double,
-    val fuelCostPerMile: Double,
-    val wearCostPerMile: Double,
-    val totalVehicleCostPerMile: Double,
+    val fuelCostPerKm: Double,
+    val wearCostPerKm: Double,
+    val totalVehicleCostPerKm: Double,
     val estimatedProfit: Double,
-    val netPerMile: Double,
+    val netPerKm: Double,
     val netPerHour: Double,
     val recommendation: Recommendation,
     val warnings: List<WarningFlag>,
     val strategyUsed: StrategyPreset,
     val destinationCategory: DestinationCategory,
-    val effectiveRequiredPerMile: Double,
+    val effectiveRequiredPerKm: Double,
     val effectiveRequiredPerMinute: Double
 )

@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ridesniper.app.model.RideOfferInput
 import com.ridesniper.app.ocr.OcrParseResult
+import com.ridesniper.app.util.Fmt
 
 /**
  * Core Feature 4: shown whenever OCR confidence is low or a required field is
@@ -21,17 +22,17 @@ fun CorrectionSheet(
     onCalculate: (RideOfferInput) -> Unit
 ) {
     var payout by remember { mutableStateOf(parsed.payout.value?.toString().orEmpty()) }
-    var pickupMiles by remember { mutableStateOf(parsed.pickupMiles.value?.toString().orEmpty()) }
-    var tripMiles by remember { mutableStateOf(parsed.tripMiles.value?.toString().orEmpty()) }
+    var pickupKm by remember { mutableStateOf(parsed.pickupKm.value?.toString().orEmpty()) }
+    var tripKm by remember { mutableStateOf(parsed.tripKm.value?.toString().orEmpty()) }
     var pickupMinutes by remember { mutableStateOf(parsed.pickupMinutes.value?.toString().orEmpty()) }
     var tripMinutes by remember { mutableStateOf(parsed.tripMinutes.value?.toString().orEmpty()) }
     var destination by remember { mutableStateOf(parsed.destinationText) }
 
-    val allFilled = payout.toDoubleOrNull() != null &&
-        pickupMiles.toDoubleOrNull() != null &&
-        tripMiles.toDoubleOrNull() != null &&
-        pickupMinutes.toDoubleOrNull() != null &&
-        tripMinutes.toDoubleOrNull() != null
+    val allFilled = Fmt.parseDecimal(payout) != null &&
+        Fmt.parseDecimal(pickupKm) != null &&
+        Fmt.parseDecimal(tripKm) != null &&
+        Fmt.parseDecimal(pickupMinutes) != null &&
+        Fmt.parseDecimal(tripMinutes) != null
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -46,9 +47,9 @@ fun CorrectionSheet(
                 color = MaterialTheme.colorScheme.secondary
             )
 
-            OutlinedTextField(payout, { payout = it }, label = { Text("Offer amount ($)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(pickupMiles, { pickupMiles = it }, label = { Text("Pickup miles") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(tripMiles, { tripMiles = it }, label = { Text("Trip miles") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(payout, { payout = it }, label = { Text("Offer amount (${Fmt.CURRENCY})") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(pickupKm, { pickupKm = it }, label = { Text("Pickup distance (${Fmt.DISTANCE_UNIT})") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(tripKm, { tripKm = it }, label = { Text("Trip distance (${Fmt.DISTANCE_UNIT})") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(pickupMinutes, { pickupMinutes = it }, label = { Text("Pickup minutes") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(tripMinutes, { tripMinutes = it }, label = { Text("Trip minutes") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(destination, { destination = it }, label = { Text("Destination") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -58,11 +59,11 @@ fun CorrectionSheet(
                 onClick = {
                     onCalculate(
                         RideOfferInput(
-                            payout = payout.toDouble(),
-                            pickupMiles = pickupMiles.toDouble(),
-                            tripMiles = tripMiles.toDouble(),
-                            pickupMinutes = pickupMinutes.toDouble(),
-                            tripMinutes = tripMinutes.toDouble(),
+                            payout = Fmt.parseDecimal(payout)!!,
+                            pickupKm = Fmt.parseDecimal(pickupKm)!!,
+                            tripKm = Fmt.parseDecimal(tripKm)!!,
+                            pickupMinutes = Fmt.parseDecimal(pickupMinutes)!!,
+                            tripMinutes = Fmt.parseDecimal(tripMinutes)!!,
                             destinationText = destination,
                             isAirport = parsed.isAirport,
                             isSurge = parsed.isSurge,

@@ -1,29 +1,33 @@
 package com.ridesniper.app.model
 
 /**
- * All user-editable settings. Defaults match the spec: 2012 Ford Escape 3.0L V6 AWD,
- * 16.5 default MPG, $0.20/mile wear reserve, PICKY strategy.
+ * All user-editable settings, in rand (R), kilometres and litres.
+ *
+ * Defaults are a starting point for a typical South African e-hailing car
+ * (small petrol hatch/sedan, ~6.5 L/100 km) and should be tuned by each
+ * driver in Settings. Fuel price changes monthly; the driver updates it from
+ * the Home screen.
  */
 data class AppSettings(
-    val gasPricePerGallon: Double = 3.50,
-    val mpg: Double = 16.5,
-    val wearCostPerMile: Double = 0.20,
+    val fuelPricePerLitre: Double = 22.00,
+    val litresPer100Km: Double = 6.5,
+    val wearCostPerKm: Double = 1.00,
 
     val strategy: StrategyPreset = StrategyPreset.DEFAULT,
 
     // Editable overrides layered on top of the strategy preset.
-    val preferredPerMile: Double = StrategyPreset.DEFAULT.preferredPerMile,
-    val minimumPerMile: Double = 1.50,
-    val hardDeclinePerMile: Double = 1.25,
+    val preferredPerKm: Double = StrategyPreset.DEFAULT.preferredPerKm,
+    val minimumPerKm: Double = 6.00,
+    val hardDeclinePerKm: Double = 5.00,
     val preferredPerMinute: Double = StrategyPreset.DEFAULT.preferredPerMinute,
-    val minimumPerMinute: Double = 0.40,
+    val minimumPerMinute: Double = 1.50,
 
-    val longPickupThresholdMiles: Double = 3.0,
-    val longRideThresholdMiles: Double = 10.0,
-    val longRidePreferredPerMile: Double = 1.75,
+    val longPickupThresholdKm: Double = 5.0,
+    val longRideThresholdKm: Double = 16.0,
+    val longRidePreferredPerKm: Double = 7.00,
 
-    val airportMinimumPerMile: Double = 1.75,
-    val airportPreferredPerMile: Double = 2.00,
+    val airportMinimumPerKm: Double = 7.00,
+    val airportPreferredPerKm: Double = 9.00,
 
     val vibrationEnabled: Boolean = true,
     val overlaySizeDp: Int = 64,
@@ -33,12 +37,23 @@ data class AppSettings(
     val ocrConfidenceThreshold: Float = 0.55f,
     val autoDeleteScreenshots: Boolean = true,
 
-    val lastGasPriceEntry: Double = 3.50
+    val lastFuelPriceEntry: Double = 22.00
 )
 
+/**
+ * Upper-case fragments that mark a destination as a South African airport.
+ * Short codes are kept to the unambiguous ones; a bare "AIRPORT" is left out
+ * on purpose because suburbs like Airport Industria (Cape Town) would match.
+ */
 val AIRPORT_KEYWORDS = listOf(
-    "MCI",
-    "KANSAS CITY INTERNATIONAL AIRPORT",
-    "TERMINAL A",
-    "KANSAS CITY INTERNATIONAL"
+    "O.R. TAMBO",
+    "OR TAMBO",
+    "O R TAMBO",
+    "JNB",
+    "LANSERIA",
+    "CAPE TOWN INTERNATIONAL",
+    "CPT",
+    "KING SHAKA",
+    "DAWID STUURMAN",
+    "BRAM FISCHER"
 )

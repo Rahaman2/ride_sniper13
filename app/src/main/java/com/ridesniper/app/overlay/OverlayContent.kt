@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ridesniper.app.model.Recommendation
 import com.ridesniper.app.model.RideCalculationResult
-import java.util.Locale
+import com.ridesniper.app.util.Fmt
 
 private val GreenTake = Color(0xFF00E676)
 private val YellowMaybe = Color(0xFFFFD600)
@@ -76,30 +76,30 @@ fun ResultCard(result: RideCalculationResult, onDismiss: () -> Unit) {
                 fontSize = 26.sp
             )
             Text(
-                text = "$%.2f/mi   $%.2f/min".format(Locale.US, result.grossPerMile, result.grossPerMinute),
+                text = "${Fmt.perKm(result.grossPerKm)}   ${Fmt.perMinute(result.grossPerMinute)}",
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Divider()
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                StatColumn("Offer", "$%.2f".format(Locale.US, result.input.payout))
-                StatColumn("Total mi", "%.1f".format(Locale.US, result.totalMiles))
-                StatColumn("Total min", "%.0f".format(Locale.US, result.totalMinutes))
+                StatColumn("Offer", Fmt.money(result.input.payout))
+                StatColumn("Total km", Fmt.number(result.totalKm, 1))
+                StatColumn("Total min", Fmt.number(result.totalMinutes, 0))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                StatColumn("Pickup", "%.1f mi / %.0f min".format(Locale.US, result.input.pickupMiles, result.input.pickupMinutes))
-                StatColumn("Trip", "%.1f mi / %.0f min".format(Locale.US, result.input.tripMiles, result.input.tripMinutes))
+                StatColumn("Pickup", "${Fmt.km(result.input.pickupKm)} / ${Fmt.minutes(result.input.pickupMinutes)}")
+                StatColumn("Trip", "${Fmt.km(result.input.tripKm)} / ${Fmt.minutes(result.input.tripMinutes)}")
             }
             Divider()
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                StatColumn("Fuel", "$%.2f".format(Locale.US, result.fuelCost))
-                StatColumn("Wear", "$%.2f".format(Locale.US, result.wearCost))
-                StatColumn("Net profit", "$%.2f".format(Locale.US, result.estimatedProfit))
+                StatColumn("Fuel", Fmt.money(result.fuelCost))
+                StatColumn("Wear", Fmt.money(result.wearCost))
+                StatColumn("Net profit", Fmt.money(result.estimatedProfit))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                StatColumn("Net/mi", "$%.2f".format(Locale.US, result.netPerMile))
-                StatColumn("Net/hr", "$%.2f".format(Locale.US, result.netPerHour))
+                StatColumn("Net/km", Fmt.money(result.netPerKm))
+                StatColumn("Net/hr", Fmt.money(result.netPerHour))
             }
             if (result.warnings.isNotEmpty()) {
                 Divider()

@@ -12,14 +12,14 @@ class StrategyPresetTest {
 
     @Test
     fun `preset thresholds match spec`() {
-        assertEquals(1.50, StrategyPreset.NORMAL.preferredPerMile, 0.001)
-        assertEquals(0.40, StrategyPreset.NORMAL.preferredPerMinute, 0.001)
+        assertEquals(7.00, StrategyPreset.NORMAL.preferredPerKm, 0.001)
+        assertEquals(1.50, StrategyPreset.NORMAL.preferredPerMinute, 0.001)
 
-        assertEquals(2.00, StrategyPreset.PICKY.preferredPerMile, 0.001)
-        assertEquals(0.50, StrategyPreset.PICKY.preferredPerMinute, 0.001)
+        assertEquals(9.00, StrategyPreset.PICKY.preferredPerKm, 0.001)
+        assertEquals(2.00, StrategyPreset.PICKY.preferredPerMinute, 0.001)
 
-        assertEquals(2.50, StrategyPreset.EXTREME.preferredPerMile, 0.001)
-        assertEquals(0.60, StrategyPreset.EXTREME.preferredPerMinute, 0.001)
+        assertEquals(11.00, StrategyPreset.EXTREME.preferredPerKm, 0.001)
+        assertEquals(2.50, StrategyPreset.EXTREME.preferredPerMinute, 0.001)
     }
 
     @Test
@@ -30,21 +30,22 @@ class StrategyPresetTest {
     }
 
     @Test
-    fun `default AppSettings match vehicle and reserve spec`() {
+    fun `default AppSettings match South African defaults`() {
         val settings = AppSettings()
-        assertEquals(16.5, settings.mpg, 0.001)
-        assertEquals(0.20, settings.wearCostPerMile, 0.001)
+        assertEquals(22.00, settings.fuelPricePerLitre, 0.001)
+        assertEquals(6.5, settings.litresPer100Km, 0.001)
+        assertEquals(1.00, settings.wearCostPerKm, 0.001)
         assertEquals(StrategyPreset.PICKY, settings.strategy)
-        assertEquals(1.25, settings.hardDeclinePerMile, 0.001)
-        assertEquals(1.75, settings.airportMinimumPerMile, 0.001)
-        assertEquals(2.00, settings.airportPreferredPerMile, 0.001)
+        assertEquals(5.00, settings.hardDeclinePerKm, 0.001)
+        assertEquals(7.00, settings.airportMinimumPerKm, 0.001)
+        assertEquals(9.00, settings.airportPreferredPerKm, 0.001)
     }
 
     @Test
-    fun `airport keyword list matches spec exactly`() {
-        assertTrue(AIRPORT_KEYWORDS.contains("MCI"))
-        assertTrue(AIRPORT_KEYWORDS.contains("KANSAS CITY INTERNATIONAL AIRPORT"))
-        assertTrue(AIRPORT_KEYWORDS.contains("TERMINAL A"))
-        assertTrue(AIRPORT_KEYWORDS.contains("KANSAS CITY INTERNATIONAL"))
+    fun `airport keyword list covers major South African airports`() {
+        listOf("OR TAMBO", "LANSERIA", "CAPE TOWN INTERNATIONAL", "KING SHAKA").forEach {
+            assertTrue(it, AIRPORT_KEYWORDS.contains(it))
+        }
+        assertFalse(AIRPORT_KEYWORDS.contains("AIRPORT"))
     }
 }

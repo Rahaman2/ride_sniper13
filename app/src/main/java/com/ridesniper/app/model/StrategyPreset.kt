@@ -1,18 +1,18 @@
 package com.ridesniper.app.model
 
 /**
- * The three built-in strategy presets. Values are $/mile and $/minute preferred
+ * The three built-in strategy presets. Values are R/km and R/minute preferred
  * minimums used as the baseline before per-ride adjustments (long ride, airport,
  * bad-return-zone) are applied.
  */
 enum class StrategyPreset(
     val label: String,
-    val preferredPerMile: Double,
+    val preferredPerKm: Double,
     val preferredPerMinute: Double
 ) {
-    NORMAL("Normal", 1.50, 0.40),
-    PICKY("Picky", 2.00, 0.50),
-    EXTREME("Extreme", 2.50, 0.60);
+    NORMAL("Normal", 7.00, 1.50),
+    PICKY("Picky", 9.00, 2.00),
+    EXTREME("Extreme", 11.00, 2.50);
 
     companion object {
         val DEFAULT = PICKY
@@ -31,7 +31,7 @@ enum class ZoneRating { GOOD_RETURN, BAD_RETURN, NEUTRAL }
 enum class WarningFlag(val label: String) {
     LONG_PICKUP("LONG PICKUP"),
     LONG_RIDE("LONG RIDE"),
-    LOW_PAY_PER_MILE("LOW PAY PER MILE"),
+    LOW_PAY_PER_KM("LOW PAY PER KM"),
     LOW_PAY_PER_MINUTE("LOW PAY PER MINUTE"),
     AIRPORT_RISK("AIRPORT RISK"),
     DEADHEAD_RISK("DEADHEAD RISK"),

@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.ridesniper.app.data.repository.RideStats
 import com.ridesniper.app.data.repository.StatsFilter
 import com.ridesniper.app.ui.RideSniperViewModel
+import com.ridesniper.app.util.Fmt
 import java.util.Locale
 
 @Composable
@@ -43,47 +44,37 @@ fun StatsScreen(viewModel: RideSniperViewModel) {
         }
 
         StatSection("Volume") {
-            StatLine("Offers analyzed", "${stats.offersAnalyzed}")
+            StatLine("Offers analysed", "${stats.offersAnalyzed}")
             StatLine("Offers accepted", "${stats.offersAccepted}")
             StatLine("Offers declined", "${stats.offersDeclined}")
             StatLine("Acceptance rate", "%.0f%%".format(Locale.US, stats.acceptanceRate * 100))
         }
 
         StatSection("Averages") {
-            StatLine("Avg gross $/mile", "$%.2f".format(Locale.US, stats.avgGrossPerMile))
-            StatLine("Avg gross $/minute", "$%.2f".format(Locale.US, stats.avgGrossPerMinute))
-            StatLine("Avg net $/mile", "$%.2f".format(Locale.US, stats.avgNetPerMile))
-            StatLine("Avg net $/hour", "$%.2f".format(Locale.US, stats.avgNetPerHour))
-            StatLine("Avg payout", "$%.2f".format(Locale.US, stats.avgPayout))
-            StatLine("Avg pickup distance", "%.1f mi".format(Locale.US, stats.avgPickupMiles))
-            StatLine("Avg trip distance", "%.1f mi".format(Locale.US, stats.avgTripMiles))
-            StatLine("Avg total distance", "%.1f mi".format(Locale.US, stats.avgTotalMiles))
+            StatLine("Avg gross R/km", Fmt.money(stats.avgGrossPerKm))
+            StatLine("Avg gross R/minute", Fmt.money(stats.avgGrossPerMinute))
+            StatLine("Avg net R/km", Fmt.money(stats.avgNetPerKm))
+            StatLine("Avg net R/hour", Fmt.money(stats.avgNetPerHour))
+            StatLine("Avg payout", Fmt.money(stats.avgPayout))
+            StatLine("Avg pickup distance", Fmt.km(stats.avgPickupKm))
+            StatLine("Avg trip distance", Fmt.km(stats.avgTripKm))
+            StatLine("Avg total distance", Fmt.km(stats.avgTotalKm))
         }
 
         StatSection("Declines saved you") {
-            StatLine("Miles avoided", "%.1f mi".format(Locale.US, stats.milesAvoidedByDeclining))
-            StatLine("Fuel avoided", "$%.2f".format(Locale.US, stats.fuelAvoided))
-            StatLine("Wear avoided", "$%.2f".format(Locale.US, stats.wearAvoided))
-            StatLine("Money preserved", "$%.2f".format(Locale.US, stats.moneyPreservedByDeclining))
+            StatLine("Kilometres avoided", Fmt.km(stats.kmAvoidedByDeclining))
+            StatLine("Fuel avoided", Fmt.money(stats.fuelAvoided))
+            StatLine("Wear avoided", Fmt.money(stats.wearAvoided))
+            StatLine("Money preserved", Fmt.money(stats.moneyPreservedByDeclining))
         }
 
         StatSection("Extremes") {
-            stats.bestRide?.let { StatLine("Best ride profit", "$%.2f".format(Locale.US, it.estimatedProfit)) }
-            stats.worstRide?.let { StatLine("Worst ride profit", "$%.2f".format(Locale.US, it.estimatedProfit)) }
-            stats.mostProfitableHour?.let { StatLine("Most profitable hour", formatHour(it)) }
-            stats.leastProfitableHour?.let { StatLine("Least profitable hour", formatHour(it)) }
+            stats.bestRide?.let { StatLine("Best ride profit", Fmt.money(it.estimatedProfit)) }
+            stats.worstRide?.let { StatLine("Worst ride profit", Fmt.money(it.estimatedProfit)) }
+            stats.mostProfitableHour?.let { StatLine("Most profitable hour", Fmt.hour(it)) }
+            stats.leastProfitableHour?.let { StatLine("Least profitable hour", Fmt.hour(it)) }
         }
     }
-}
-
-private fun formatHour(hour24: Int): String {
-    val period = if (hour24 < 12) "AM" else "PM"
-    val h = when {
-        hour24 == 0 -> 12
-        hour24 > 12 -> hour24 - 12
-        else -> hour24
-    }
-    return "$h:00 $period"
 }
 
 @Composable

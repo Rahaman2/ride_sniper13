@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [RideEntity::class], version = 1, exportSchema = true)
+@Database(entities = [RideEntity::class], version = 2, exportSchema = true)
 abstract class RideDatabase : RoomDatabase() {
 
     abstract fun rideDao(): RideDao
@@ -19,7 +19,11 @@ abstract class RideDatabase : RoomDatabase() {
                     context.applicationContext,
                     RideDatabase::class.java,
                     "ride_sniper.db"
-                ).build().also { INSTANCE = it }
+                )
+                    // v2 switched every column from miles/dollars to km/rand. Old rows would be
+                    // misread under the new units, so they are dropped rather than migrated.
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
             }
     }
 }

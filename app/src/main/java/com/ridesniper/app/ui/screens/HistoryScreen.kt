@@ -19,6 +19,7 @@ import com.ridesniper.app.ui.theme.DeclineRed
 import com.ridesniper.app.ui.theme.MaybeYellow
 import com.ridesniper.app.ui.theme.TakeGreen
 import com.ridesniper.app.util.CsvExporter
+import com.ridesniper.app.util.Fmt
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -76,7 +77,7 @@ private fun HistoryRow(ride: RideEntity, onMark: (Boolean) -> Unit) {
         "MAYBE" -> MaybeYellow
         else -> DeclineRed
     }
-    val fmt = remember { SimpleDateFormat("MMM d, h:mm a", Locale.US) }
+    val fmt = remember { SimpleDateFormat("d MMM, HH:mm", Fmt.DISPLAY_LOCALE) }
 
     Card {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -85,12 +86,10 @@ private fun HistoryRow(ride: RideEntity, onMark: (Boolean) -> Unit) {
                 Text(fmt.format(Date(ride.timestamp)), color = MaterialTheme.colorScheme.secondary)
             }
             Text(
-                "$%.2f offer · %.1f mi · $%.2f/mi · $%.2f/min".format(
-                    Locale.US, ride.offerAmount, ride.totalMiles, ride.grossPerMile, ride.grossPerMinute
-                )
+                "${Fmt.money(ride.offerAmount)} offer · ${Fmt.km(ride.totalKm)} · ${Fmt.perKm(ride.grossPerKm)} · ${Fmt.perMinute(ride.grossPerMinute)}"
             )
             Text(
-                "Net profit $%.2f · $%.2f/hr".format(Locale.US, ride.estimatedProfit, ride.netPerHour),
+                "Net profit ${Fmt.money(ride.estimatedProfit)} · ${Fmt.perHour(ride.netPerHour)}",
                 color = MaterialTheme.colorScheme.secondary
             )
             if (ride.destinationText.isNotBlank()) {

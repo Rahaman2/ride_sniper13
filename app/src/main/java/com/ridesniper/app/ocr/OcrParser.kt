@@ -13,8 +13,8 @@ data class ParsedField<T>(val value: T?, val matchedRule: String?)
 
 data class OcrParseResult(
     val payout: ParsedField<Double>,
-    val pickupMiles: ParsedField<Double>,
-    val tripMiles: ParsedField<Double>,
+    val pickupKm: ParsedField<Double>,
+    val tripKm: ParsedField<Double>,
     val pickupMinutes: ParsedField<Double>,
     val tripMinutes: ParsedField<Double>,
     val destinationText: String,
@@ -26,20 +26,20 @@ data class OcrParseResult(
 ) {
     fun missingFields(): List<String> = buildList {
         if (payout.value == null) add("Offer amount")
-        if (pickupMiles.value == null) add("Pickup miles")
-        if (tripMiles.value == null) add("Trip miles")
+        if (pickupKm.value == null) add("Pickup km")
+        if (tripKm.value == null) add("Trip km")
         if (pickupMinutes.value == null) add("Pickup minutes")
         if (tripMinutes.value == null) add("Trip minutes")
     }
 
     fun toInputOrNull(): RideOfferInput? {
         val p = payout.value ?: return null
-        val pm = pickupMiles.value ?: return null
-        val tm = tripMiles.value ?: return null
+        val pm = pickupKm.value ?: return null
+        val tm = tripKm.value ?: return null
         val pmin = pickupMinutes.value ?: return null
         val tmin = tripMinutes.value ?: return null
         return RideOfferInput(
-            payout = p, pickupMiles = pm, tripMiles = tm,
+            payout = p, pickupKm = pm, tripKm = tm,
             pickupMinutes = pmin, tripMinutes = tmin,
             destinationText = destinationText, isAirport = isAirport,
             isSurge = isSurge, isReservation = isReservation, ocrConfidence = confidence
@@ -55,18 +55,25 @@ data class OcrParseResult(
  */
 object OcrParser {
 
-    // Money: $12.50   $ 12.50   $12,50 (comma-as-decimal)   $12
-    private val moneyRegex = Regex("""\$\s?(\d{1,3}(?:[.,]\d{1,2})?)""")
+    // Rand: R85.40   R 85.40   R85,40 (comma-as-decimal)   R85   R1 250,00   R1,250.00
+    // Thousands separators are only accepted with cents, so "R85 120 min" is not read as R85 120.
+    // The "R" must not follow a letter, so words like "CAR 3" or "DRIVER 4" don't match.
+    private val moneyRegex = Regex(
+        """(?<![A-Za-z])R\s?(\d{1,3}(?:[ \u00A0,]\d{3})+[.,]\d{2}|\d{1,4}(?:[.,]\d{1,2})?)"""
+    )
 
-    // Distance: 2.1 mi   5.4mi   0.9 mi.   12 mi
-    private val distanceRegex = Regex("""(\d{1,3}(?:[.,]\d{1,2})?)\s?mi\b""", RegexOption.IGNORE_CASE)
+    // Distance: 2.1 km   5.4km   0.9 km.   12 km
+    private val distanceRegex = Regex("""(\d{1,3}(?:[.,]\d{1,2})?)\s?km\b""", RegexOption.IGNORE_CASE)
 
     // Duration: 18 min   5 min   4mins
     private val durationRegex = Regex("""(\d{1,3})\s?min""", RegexOption.IGNORE_CASE)
 
-    // Labeled pickup/trip lines: "Pickup 4 min", "Trip 13 min", "Pickup: 2.1 mi"
-    private val pickupLineRegex = Regex("""pickup[^0-9]{0,6}(\d{1,3}(?:[.,]\d{1,2})?)\s?(mi|min)""", RegexOption.IGNORE_CASE)
-    private val tripLineRegex = Regex("""trip[^0-9]{0,6}(\d{1,3}(?:[.,]\d{1,2})?)\s?(mi|min)""", RegexOption.IGNORE_CASE)
+    // Labeled pickup/trip lines: "Pickup 4 min", "Trip 13 min", "Pickup: 2.1 km"
+    private val pickupLineRegex = Regex("""pickup[^0-9]{0,6}(\d{1,3}(?:[.,]\d{1,2})?)\s?(km|min)""", RegexOption.IGNORE_CASE)
+    private val tripLineRegex = Regex("""trip[^0-9]{0,6}(\d{1,3}(?:[.,]\d{1,2})?)\s?(km|min)""", RegexOption.IGNORE_CASE)
+
+    // The last "." or "," followed by 1-2 digits is the decimal separator ("1 250,00", "85.40").
+    private val centsRegex = Regex("""[.,](\d{1,2})$""")
 
     private val surgeRegex = Regex("""increased|surge|boost""", RegexOption.IGNORE_CASE)
     private val reservationRegex = Regex("""reserve|reservation|scheduled""", RegexOption.IGNORE_CASE)
@@ -76,7 +83,7 @@ object OcrParser {
         val lines = normalized.lines().map { it.trim() }.filter { it.isNotBlank() }
 
         val payout = parsePayout(normalized)
-        val (pickupMiles, tripMiles) = parseDistances(normalized, lines)
+        val (pickupKm, tripKm) = parseDistances(normalized, lines)
         val (pickupMinutes, tripMinutes) = parseDurations(normalized, lines)
 
         val destinationText = extractDestination(lines)
@@ -84,13 +91,13 @@ object OcrParser {
         val isSurge = surgeRegex.containsMatchIn(normalized)
         val isReservation = reservationRegex.containsMatchIn(normalized)
 
-        val fieldsFound = listOf(payout, pickupMiles, tripMiles, pickupMinutes, tripMinutes).count { it.value != null }
+        val fieldsFound = listOf(payout, pickupKm, tripKm, pickupMinutes, tripMinutes).count { it.value != null }
         val heuristicConfidence = (fieldsFound / 5.0f) * mlKitConfidence.coerceIn(0f, 1f).let { if (it == 0f) 1f else it }
 
         return OcrParseResult(
             payout = payout,
-            pickupMiles = pickupMiles,
-            tripMiles = tripMiles,
+            pickupKm = pickupKm,
+            tripKm = tripKm,
             pickupMinutes = pickupMinutes,
             tripMinutes = tripMinutes,
             destinationText = destinationText,
@@ -117,25 +124,46 @@ object OcrParser {
     private fun toDouble(raw: String): Double? =
         raw.replace(",", ".").toDoubleOrNull()
 
+    private data class MoneyMatch(val value: Double, val hasCents: Boolean)
+
+    /** Parses "1 250,00", "1,250.00", "85,40" or "85" into rand. */
+    private fun parseMoney(raw: String): MoneyMatch? {
+        val compact = raw.replace(" ", "").replace("\u00A0", "")
+        val cents = centsRegex.find(compact)
+        val whole = (if (cents != null) compact.substring(0, cents.range.first) else compact)
+            .replace(",", "").replace(".", "")
+        val value = "$whole.${cents?.groupValues?.get(1) ?: "0"}".toDoubleOrNull() ?: return null
+        return MoneyMatch(value, hasCents = cents != null)
+    }
+
     private fun parsePayout(text: String): ParsedField<Double> {
-        val matches = moneyRegex.findAll(text).mapNotNull { toDouble(it.groupValues[1]) }.toList()
-        // The offer amount is almost always the largest dollar figure on an Uber offer screen
-        // (bigger than any per-mile/per-minute sub-figures that sometimes appear).
-        val value = matches.maxOrNull()
-        return ParsedField(value, if (value != null) "moneyRegex.max" else null)
+        val matches = moneyRegex.findAll(text).mapNotNull { parseMoney(it.groupValues[1]) }.toList()
+        // South African regional roads (R21, R512, ...) look like rand amounts without cents,
+        // so prefer amounts that show cents and only fall back to whole-rand matches if none do.
+        val withCents = matches.filter { it.hasCents }
+        val candidates = withCents.ifEmpty { matches }
+        // The offer amount is almost always the largest rand figure on an Uber offer screen
+        // (bigger than any per-km/per-minute sub-figures that sometimes appear).
+        val value = candidates.maxOfOrNull { it.value }
+        val rule = when {
+            value == null -> null
+            withCents.isNotEmpty() -> "moneyRegex.maxWithCents"
+            else -> "moneyRegex.max"
+        }
+        return ParsedField(value, rule)
     }
 
     private fun parseDistances(text: String, lines: List<String>): Pair<ParsedField<Double>, ParsedField<Double>> {
-        val pickupLabeled = pickupLineRegex.find(text)?.takeIf { it.groupValues[2].equals("mi", true) }
+        val pickupLabeled = pickupLineRegex.find(text)?.takeIf { it.groupValues[2].equals("km", true) }
             ?.let { toDouble(it.groupValues[1]) }
-        val tripLabeled = tripLineRegex.find(text)?.takeIf { it.groupValues[2].equals("mi", true) }
+        val tripLabeled = tripLineRegex.find(text)?.takeIf { it.groupValues[2].equals("km", true) }
             ?.let { toDouble(it.groupValues[1]) }
 
         if (pickupLabeled != null && tripLabeled != null) {
             return ParsedField(pickupLabeled, "pickupLineRegex") to ParsedField(tripLabeled, "tripLineRegex")
         }
 
-        // Fallback heuristic: collect all "X mi" values in on-screen order. Uber offer
+        // Fallback heuristic: collect all "X km" values in on-screen order. Uber offer
         // cards conventionally list pickup distance first, trip distance second.
         val allDistances = distanceRegex.findAll(text).mapNotNull { toDouble(it.groupValues[1]) }.toList()
         val pickup = pickupLabeled ?: allDistances.getOrNull(0)
@@ -169,7 +197,7 @@ object OcrParser {
 
     private fun extractDestination(lines: List<String>): String {
         // Heuristic: the destination line is usually the longest line that isn't a
-        // money/mile/min token by itself, and often follows an arrow or "to" marker.
+        // money/km/min token by itself, and often follows an arrow or "to" marker.
         val candidate = lines.firstOrNull { line ->
             !moneyRegex.matches(line) &&
                 !distanceRegex.matches(line) &&

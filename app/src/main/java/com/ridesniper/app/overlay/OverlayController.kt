@@ -152,7 +152,7 @@ class OverlayController(private val context: Context) {
      * showNoOfferDetected() is called for this tap.
      */
     fun showAnalyzing() {
-        showTransientMessage("Analyzing…", autoDismissMillis = 6000)
+        showTransientMessage("Analysing…", autoDismissMillis = 6000)
     }
 
     /**

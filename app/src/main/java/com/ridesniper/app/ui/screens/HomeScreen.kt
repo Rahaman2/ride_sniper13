@@ -20,7 +20,7 @@ import com.ridesniper.app.ui.RideSniperViewModel
 import com.ridesniper.app.ui.theme.DeclineRed
 import com.ridesniper.app.ui.theme.MaybeYellow
 import com.ridesniper.app.ui.theme.TakeGreen
-import java.util.Locale
+import com.ridesniper.app.util.Fmt
 
 @Composable
 fun HomeScreen(
@@ -31,7 +31,7 @@ fun HomeScreen(
 ) {
     val settings by viewModel.settings.collectAsState()
     val latestResult by viewModel.latestResult.collectAsState()
-    var gasPriceText by remember(settings.gasPricePerGallon) { mutableStateOf("%.2f".format(Locale.US, settings.gasPricePerGallon)) }
+    var fuelPriceText by remember(settings.fuelPricePerLitre) { mutableStateOf(Fmt.number(settings.fuelPricePerLitre)) }
 
     Column(
         modifier = Modifier
@@ -51,30 +51,31 @@ fun HomeScreen(
             )
         } else {
             PermissionCard(
-                title = "Start the analyzer",
+                title = "Start the analyser",
                 description = "Starts the floating bubble and grants one-time screen-capture access. You'll be asked again each time Android restarts capture (this is an OS restriction, not a bug).",
                 buttonLabel = "Start Ride Sniper",
                 onClick = onStartAnalyzer
             )
         }
 
-        // Core Feature 11: quick gas price entry, no internet required.
+        // Core Feature 11: quick fuel price entry (changes monthly in SA), no internet required.
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.LocalGasStation, contentDescription = null)
-                    Text("Gas today", style = MaterialTheme.typography.titleLarge)
+                    Text("Fuel price today", style = MaterialTheme.typography.titleLarge)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("$", style = MaterialTheme.typography.headlineMedium)
+                    Text(Fmt.CURRENCY, style = MaterialTheme.typography.headlineMedium)
                     OutlinedTextField(
-                        value = gasPriceText,
-                        onValueChange = { gasPriceText = it },
+                        value = fuelPriceText,
+                        onValueChange = { fuelPriceText = it },
                         modifier = Modifier.width(120.dp),
                         singleLine = true
                     )
+                    Text("/${Fmt.FUEL_UNIT}", style = MaterialTheme.typography.titleLarge)
                     Button(onClick = {
-                        gasPriceText.toDoubleOrNull()?.let { viewModel.setGasPrice(it) }
+                        Fmt.parseDecimal(fuelPriceText)?.let { viewModel.setFuelPrice(it) }
                     }) { Text("Save") }
                 }
             }
@@ -94,17 +95,17 @@ fun HomeScreen(
                     }
                 }
                 Text(
-                    "Preferred: $%.2f/mi · $%.2f/min".format(Locale.US, settings.preferredPerMile, settings.preferredPerMinute),
+                    "Preferred: ${Fmt.perKm(settings.preferredPerKm)} · ${Fmt.perMinute(settings.preferredPerMinute)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.secondary
                 )
             }
         }
 
-        Text("Last analyzed offer", style = MaterialTheme.typography.titleLarge)
+        Text("Last analysed offer", style = MaterialTheme.typography.titleLarge)
         if (latestResult == null) {
             Text(
-                "No offer analyzed yet. Tap the floating bubble over Uber Driver to analyze one.",
+                "No offer analysed yet. Tap the floating bubble over Uber Driver to analyse one.",
                 color = MaterialTheme.colorScheme.secondary
             )
         } else {
@@ -146,11 +147,11 @@ fun ResultHud(result: RideCalculationResult) {
             fontSize = 64.sp
         )
         Text(
-            "$%.2f / mile   ·   $%.2f / minute".format(Locale.US, result.grossPerMile, result.grossPerMinute),
+            "${Fmt.perKm(result.grossPerKm)}   ·   ${Fmt.perMinute(result.grossPerMinute)}",
             style = MaterialTheme.typography.headlineMedium
         )
         Text(
-            "$%.2f estimated profit   ·   $%.2f/hr net".format(Locale.US, result.estimatedProfit, result.netPerHour),
+            "${Fmt.money(result.estimatedProfit)} estimated profit   ·   ${Fmt.perHour(result.netPerHour)} net",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.secondary
         )
@@ -176,18 +177,18 @@ fun ResultHud(result: RideCalculationResult) {
 @Composable
 private fun DetailGrid(result: RideCalculationResult) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DetailRow("Offer amount", "$%.2f".format(Locale.US, result.input.payout))
-        DetailRow("Pickup miles", "%.2f mi".format(Locale.US, result.input.pickupMiles))
-        DetailRow("Trip miles", "%.2f mi".format(Locale.US, result.input.tripMiles))
-        DetailRow("Total miles", "%.2f mi".format(Locale.US, result.totalMiles))
-        DetailRow("Pickup minutes", "%.1f min".format(Locale.US, result.input.pickupMinutes))
-        DetailRow("Trip minutes", "%.1f min".format(Locale.US, result.input.tripMinutes))
-        DetailRow("Total minutes", "%.1f min".format(Locale.US, result.totalMinutes))
-        DetailRow("Estimated fuel cost", "$%.2f".format(Locale.US, result.fuelCost))
-        DetailRow("Estimated wear cost", "$%.2f".format(Locale.US, result.wearCost))
-        DetailRow("Estimated net profit", "$%.2f".format(Locale.US, result.estimatedProfit))
-        DetailRow("Estimated net/mile", "$%.2f".format(Locale.US, result.netPerMile))
-        DetailRow("Estimated net/hour", "$%.2f".format(Locale.US, result.netPerHour))
+        DetailRow("Offer amount", Fmt.money(result.input.payout))
+        DetailRow("Pickup distance", Fmt.km(result.input.pickupKm, 2))
+        DetailRow("Trip distance", Fmt.km(result.input.tripKm, 2))
+        DetailRow("Total distance", Fmt.km(result.totalKm, 2))
+        DetailRow("Pickup minutes", Fmt.minutes(result.input.pickupMinutes, 1))
+        DetailRow("Trip minutes", Fmt.minutes(result.input.tripMinutes, 1))
+        DetailRow("Total minutes", Fmt.minutes(result.totalMinutes, 1))
+        DetailRow("Estimated fuel cost", Fmt.money(result.fuelCost))
+        DetailRow("Estimated wear cost", Fmt.money(result.wearCost))
+        DetailRow("Estimated net profit", Fmt.money(result.estimatedProfit))
+        DetailRow("Estimated net/km", Fmt.money(result.netPerKm))
+        DetailRow("Estimated net/hour", Fmt.money(result.netPerHour))
         DetailRow("Destination", result.input.destinationText.ifBlank { "—" })
         DetailRow("Strategy used", result.strategyUsed.label)
     }

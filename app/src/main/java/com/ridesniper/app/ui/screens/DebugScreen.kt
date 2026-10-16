@@ -25,7 +25,7 @@ fun DebugScreen() {
 
         val p = parsed
         if (p == null) {
-            Text("No OCR pass has run yet. Analyze an offer to populate this screen.", color = MaterialTheme.colorScheme.secondary)
+            Text("No OCR pass has run yet. Analyse an offer to populate this screen.", color = MaterialTheme.colorScheme.secondary)
             return@Column
         }
 
@@ -33,8 +33,8 @@ fun DebugScreen() {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Confidence: %.0f%%".format(p.confidence * 100))
                 FieldRow("Offer amount", p.payout.value?.toString(), p.payout.matchedRule)
-                FieldRow("Pickup miles", p.pickupMiles.value?.toString(), p.pickupMiles.matchedRule)
-                FieldRow("Trip miles", p.tripMiles.value?.toString(), p.tripMiles.matchedRule)
+                FieldRow("Pickup km", p.pickupKm.value?.toString(), p.pickupKm.matchedRule)
+                FieldRow("Trip km", p.tripKm.value?.toString(), p.tripKm.matchedRule)
                 FieldRow("Pickup minutes", p.pickupMinutes.value?.toString(), p.pickupMinutes.matchedRule)
                 FieldRow("Trip minutes", p.tripMinutes.value?.toString(), p.tripMinutes.matchedRule)
                 FieldRow("Destination", p.destinationText.ifBlank { null }, null)

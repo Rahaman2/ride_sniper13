@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ridesniper.app.model.AppSettings
 import com.ridesniper.app.ui.RideSniperViewModel
+import com.ridesniper.app.util.Fmt
 import java.util.Locale
 
 @Composable
@@ -26,53 +27,53 @@ fun SettingsScreen(viewModel: RideSniperViewModel) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium)
 
         SettingsSection("Vehicle & cost") {
-            NumberSetting("Gas price ($/gal)", settings.gasPricePerGallon) {
-                viewModel.updateSettings { s -> s.copy(gasPricePerGallon = it) }
+            NumberSetting("Fuel price (R/litre)", settings.fuelPricePerLitre) {
+                viewModel.updateSettings { s -> s.copy(fuelPricePerLitre = it) }
             }
-            NumberSetting("MPG", settings.mpg) {
-                viewModel.updateSettings { s -> s.copy(mpg = it) }
+            NumberSetting("Fuel consumption (L/100 km)", settings.litresPer100Km) {
+                viewModel.updateSettings { s -> s.copy(litresPer100Km = it) }
             }
-            NumberSetting("Wear/maintenance reserve ($/mile)", settings.wearCostPerMile) {
-                viewModel.updateSettings { s -> s.copy(wearCostPerMile = it) }
+            NumberSetting("Wear/maintenance reserve (R/km)", settings.wearCostPerKm) {
+                viewModel.updateSettings { s -> s.copy(wearCostPerKm = it) }
             }
         }
 
         SettingsSection("Thresholds") {
-            NumberSetting("Preferred $/mile", settings.preferredPerMile) {
-                viewModel.updateSettings { s -> s.copy(preferredPerMile = it) }
+            NumberSetting("Preferred R/km", settings.preferredPerKm) {
+                viewModel.updateSettings { s -> s.copy(preferredPerKm = it) }
             }
-            NumberSetting("Minimum $/mile", settings.minimumPerMile) {
-                viewModel.updateSettings { s -> s.copy(minimumPerMile = it) }
+            NumberSetting("Minimum R/km", settings.minimumPerKm) {
+                viewModel.updateSettings { s -> s.copy(minimumPerKm = it) }
             }
-            NumberSetting("Hard decline $/mile", settings.hardDeclinePerMile) {
-                viewModel.updateSettings { s -> s.copy(hardDeclinePerMile = it) }
+            NumberSetting("Hard decline R/km", settings.hardDeclinePerKm) {
+                viewModel.updateSettings { s -> s.copy(hardDeclinePerKm = it) }
             }
-            NumberSetting("Preferred $/minute", settings.preferredPerMinute) {
+            NumberSetting("Preferred R/minute", settings.preferredPerMinute) {
                 viewModel.updateSettings { s -> s.copy(preferredPerMinute = it) }
             }
-            NumberSetting("Minimum $/minute", settings.minimumPerMinute) {
+            NumberSetting("Minimum R/minute", settings.minimumPerMinute) {
                 viewModel.updateSettings { s -> s.copy(minimumPerMinute = it) }
             }
         }
 
         SettingsSection("Ride shape") {
-            NumberSetting("Long pickup threshold (mi)", settings.longPickupThresholdMiles) {
-                viewModel.updateSettings { s -> s.copy(longPickupThresholdMiles = it) }
+            NumberSetting("Long pickup threshold (km)", settings.longPickupThresholdKm) {
+                viewModel.updateSettings { s -> s.copy(longPickupThresholdKm = it) }
             }
-            NumberSetting("Long ride threshold (mi)", settings.longRideThresholdMiles) {
-                viewModel.updateSettings { s -> s.copy(longRideThresholdMiles = it) }
+            NumberSetting("Long ride threshold (km)", settings.longRideThresholdKm) {
+                viewModel.updateSettings { s -> s.copy(longRideThresholdKm = it) }
             }
-            NumberSetting("Long ride preferred $/mile", settings.longRidePreferredPerMile) {
-                viewModel.updateSettings { s -> s.copy(longRidePreferredPerMile = it) }
+            NumberSetting("Long ride preferred R/km", settings.longRidePreferredPerKm) {
+                viewModel.updateSettings { s -> s.copy(longRidePreferredPerKm = it) }
             }
         }
 
         SettingsSection("Airport") {
-            NumberSetting("Airport minimum $/mile", settings.airportMinimumPerMile) {
-                viewModel.updateSettings { s -> s.copy(airportMinimumPerMile = it) }
+            NumberSetting("Airport minimum R/km", settings.airportMinimumPerKm) {
+                viewModel.updateSettings { s -> s.copy(airportMinimumPerKm = it) }
             }
-            NumberSetting("Airport preferred $/mile", settings.airportPreferredPerMile) {
-                viewModel.updateSettings { s -> s.copy(airportPreferredPerMile = it) }
+            NumberSetting("Airport preferred R/km", settings.airportPreferredPerKm) {
+                viewModel.updateSettings { s -> s.copy(airportPreferredPerKm = it) }
             }
         }
 
@@ -110,7 +111,7 @@ private fun SettingsSection(title: String, content: @Composable ColumnScope.() -
 
 @Composable
 private fun NumberSetting(label: String, value: Double, onCommit: (Double) -> Unit) {
-    var text by remember(value) { mutableStateOf("%.2f".format(Locale.US, value)) }
+    var text by remember(value) { mutableStateOf(Fmt.number(value)) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
         OutlinedTextField(
@@ -120,7 +121,7 @@ private fun NumberSetting(label: String, value: Double, onCommit: (Double) -> Un
             singleLine = true,
             trailingIcon = null
         )
-        TextButton(onClick = { text.toDoubleOrNull()?.let(onCommit) }) { Text("Set") }
+        TextButton(onClick = { Fmt.parseDecimal(text)?.let(onCommit) }) { Text("Set") }
     }
 }
 

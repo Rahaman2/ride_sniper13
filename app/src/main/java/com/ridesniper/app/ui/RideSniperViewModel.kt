@@ -97,8 +97,8 @@ class RideSniperViewModel(
         viewModelScope.launch { settingsDataStore.applyStrategyPreset(preset) }
     }
 
-    fun setGasPrice(price: Double) {
-        viewModelScope.launch { settingsDataStore.setGasPrice(price) }
+    fun setFuelPrice(price: Double) {
+        viewModelScope.launch { settingsDataStore.setFuelPrice(price) }
     }
 
     fun setZoneRating(destinationText: String, rating: ZoneRating) {
