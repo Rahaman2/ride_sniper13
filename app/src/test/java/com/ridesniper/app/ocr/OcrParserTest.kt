@@ -115,6 +115,65 @@ class OcrParserTest {
     }
 
     @Test
+    fun `pairs each time with the distance on its line using away and trip`() {
+        val raw = """
+            UberX
+            R85.40
+            4 mins (1.8 km) away
+            Rosebank Mall
+            12 mins (7.2 km) trip
+            Sandton City
+        """.trimIndent()
+        val result = OcrParser.parse(raw, mlKitConfidence = 0.9f)
+        assertEquals(1.8, result.pickupKm.value!!, 0.001)
+        assertEquals(4.0, result.pickupMinutes.value!!, 0.001)
+        assertEquals(7.2, result.tripKm.value!!, 0.001)
+        assertEquals(12.0, result.tripMinutes.value!!, 0.001)
+        assertEquals("leg.label", result.pickupKm.matchedRule)
+        assertFalse(result.speedCheckFailed)
+    }
+
+    @Test
+    fun `labels win over screen order`() {
+        // The trip line comes first here; the words, not the order, decide.
+        val raw = "R120.00\n20 min (15.0 km) trip\n3 min (1.1 km) away"
+        val result = OcrParser.parse(raw, mlKitConfidence = 0.9f)
+        assertEquals(1.1, result.pickupKm.value!!, 0.001)
+        assertEquals(15.0, result.tripKm.value!!, 0.001)
+    }
+
+    @Test
+    fun `reads hours and minutes`() {
+        val raw = "R640.00\n6 min (2.5 km) away\n1 hr 5 min (58.0 km) trip"
+        val result = OcrParser.parse(raw, mlKitConfidence = 0.9f)
+        assertEquals(65.0, result.tripMinutes.value!!, 0.001)
+    }
+
+    @Test
+    fun `reads metres as kilometres`() {
+        val raw = "R45.00\n2 min (800 m) away\n9 min (4.5 km) trip"
+        val result = OcrParser.parse(raw, mlKitConfidence = 0.9f)
+        assertEquals(0.8, result.pickupKm.value!!, 0.001)
+    }
+
+    @Test
+    fun `an address with H is not read as hours`() {
+        val raw = "R60.00\n5 min (2.0 km) away\n12 H Street\n10 min (5.0 km) trip"
+        val result = OcrParser.parse(raw, mlKitConfidence = 0.9f)
+        assertEquals(5.0, result.pickupMinutes.value!!, 0.001)
+        assertEquals(10.0, result.tripMinutes.value!!, 0.001)
+    }
+
+    @Test
+    fun `impossible speed lowers confidence`() {
+        // 40 km in 5 min is 480 km/h: the numbers were misread or mixed up.
+        val raw = "R300.00\n4 min (1.5 km) away\n5 min (40.0 km) trip"
+        val result = OcrParser.parse(raw, mlKitConfidence = 1.0f)
+        assertTrue(result.speedCheckFailed)
+        assertTrue(result.confidence <= 0.5f)
+    }
+
+    @Test
     fun `payout picks the largest rand figure on screen`() {
         // Uber sometimes shows a small per-km or surge sub-figure alongside the main offer.
         val raw = "R224.40\nR9.10/km\n3.5 km\n20 min"

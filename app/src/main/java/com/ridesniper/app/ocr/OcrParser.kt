@@ -22,7 +22,9 @@ data class OcrParseResult(
     val isSurge: Boolean,
     val isReservation: Boolean,
     val rawText: String,
-    val confidence: Float
+    val confidence: Float,
+    // True when a distance and its time imply an impossible speed, a sign the numbers were mixed up.
+    val speedCheckFailed: Boolean = false
 ) {
     fun missingFields(): List<String> = buildList {
         if (payout.value == null) add("Offer amount")
@@ -62,11 +64,25 @@ object OcrParser {
         """(?<![A-Za-z])R\s?(\d{1,3}(?:[ \u00A0,]\d{3})+[.,]\d{2}|\d{1,4}(?:[.,]\d{1,2})?)"""
     )
 
-    // Distance: 2.1 km   5.4km   0.9 km.   12 km
-    private val distanceRegex = Regex("""(\d{1,3}(?:[.,]\d{1,2})?)\s?km\b""", RegexOption.IGNORE_CASE)
+    // Distance: 2.1 km   5.4km   0.9 km.   12 km   800 m
+    // Group 1 is kilometres, group 2 is whole metres. The lookbehind stops "1.8 m" being read as "8 m".
+    private val distanceRegex = Regex("""(?<![\d.,])(?:(\d{1,3}(?:[.,]\d{1,2})?)\s?km|(\d{1,4})\s?m)\b""", RegexOption.IGNORE_CASE)
 
-    // Duration: 18 min   5 min   4mins
-    private val durationRegex = Regex("""(\d{1,3})\s?min""", RegexOption.IGNORE_CASE)
+    // Duration: 18 min   5 mins   1 hr 5 min   1h20 min   2 hrs
+    // Groups 1 and 2 are hours and minutes ("1 hr 5 min"); group 3 is minutes on their own ("18 min").
+    // A bare "h" counts only when minutes follow, so an address like "12 H Street" isn't 12 hours.
+    private val durationRegex = Regex(
+        """(?<!\d)(\d{1,2})\s?(?:(?:hours?|hrs?)\b|h(?=\s?\d))\.?(?:\s*(\d{1,2})\s?min(?:ute)?s?\b)?|(?<!\d)(\d{1,3})\s?min(?:ute)?s?\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Words that say which leg a "4 min (1.8 km)" line belongs to.
+    private val pickupWordRegex = Regex("""\b(?:away|pick\s?-?up)\b""", RegexOption.IGNORE_CASE)
+    private val tripWordRegex = Regex("""\btrip\b""", RegexOption.IGNORE_CASE)
+
+    // Speeds outside this range mean a distance and time were mismatched or misread.
+    private const val MIN_PLAUSIBLE_KMH = 2.0
+    private const val MAX_PLAUSIBLE_KMH = 150.0
 
     // Labeled pickup/trip lines: "Pickup 4 min", "Trip 13 min", "Pickup: 2.1 km"
     private val pickupLineRegex = Regex("""pickup[^0-9]{0,6}(\d{1,3}(?:[.,]\d{1,2})?)\s?(km|min)""", RegexOption.IGNORE_CASE)
@@ -83,16 +99,25 @@ object OcrParser {
         val lines = normalized.lines().map { it.trim() }.filter { it.isNotBlank() }
 
         val payout = parsePayout(normalized)
-        val (pickupKm, tripKm) = parseDistances(normalized, lines)
-        val (pickupMinutes, tripMinutes) = parseDurations(normalized, lines)
+
+        // Best case: each leg is one line holding its time and distance, e.g. "4 min (1.8 km) away".
+        // Otherwise fall back to reading distances and times separately.
+        val legs = parseLegs(lines)
+        val (pickupKm, tripKm) = legs?.distances ?: parseDistances(normalized, lines)
+        val (pickupMinutes, tripMinutes) = legs?.durations ?: parseDurations(normalized, lines)
 
         val destinationText = extractDestination(lines)
         val isAirport = AIRPORT_KEYWORDS.any { normalized.uppercase().contains(it) }
         val isSurge = surgeRegex.containsMatchIn(normalized)
         val isReservation = reservationRegex.containsMatchIn(normalized)
 
+        val speedCheckFailed = !plausibleSpeed(pickupKm.value, pickupMinutes.value) ||
+            !plausibleSpeed(tripKm.value, tripMinutes.value)
+
         val fieldsFound = listOf(payout, pickupKm, tripKm, pickupMinutes, tripMinutes).count { it.value != null }
-        val heuristicConfidence = (fieldsFound / 5.0f) * mlKitConfidence.coerceIn(0f, 1f).let { if (it == 0f) 1f else it }
+        val heuristicConfidence = (fieldsFound / 5.0f) *
+            mlKitConfidence.coerceIn(0f, 1f).let { if (it == 0f) 1f else it } *
+            (if (speedCheckFailed) 0.5f else 1f)
 
         return OcrParseResult(
             payout = payout,
@@ -105,8 +130,80 @@ object OcrParser {
             isSurge = isSurge,
             isReservation = isReservation,
             rawText = rawText,
-            confidence = heuristicConfidence.coerceIn(0f, 1f)
+            confidence = heuristicConfidence.coerceIn(0f, 1f),
+            speedCheckFailed = speedCheckFailed
         )
+    }
+
+    private enum class LegRole { PICKUP, TRIP }
+
+    private data class Leg(val km: Double, val minutes: Double, val role: LegRole?)
+
+    private class Legs(val pickup: Leg, val trip: Leg, val pickupRule: String, val tripRule: String) {
+        val distances get() = ParsedField(pickup.km, pickupRule) to ParsedField(trip.km, tripRule)
+        val durations get() = ParsedField(pickup.minutes, pickupRule) to ParsedField(trip.minutes, tripRule)
+    }
+
+    /**
+     * Finds lines that hold both a time and a distance, such as "4 min (1.8 km) away" and
+     * "12 min (7.2 km) trip", and works out which is the pickup and which is the trip.
+     * Keeping each time with the distance on its own line means they can't be mixed up.
+     * Returns null unless both legs are found.
+     */
+    private fun parseLegs(lines: List<String>): Legs? {
+        val legs = lines.mapNotNull { line ->
+            val duration = durationRegex.find(line) ?: return@mapNotNull null
+            val distance = distanceRegex.find(line) ?: return@mapNotNull null
+            val km = kmOf(distance) ?: return@mapNotNull null
+            val minutes = minutesOf(duration) ?: return@mapNotNull null
+            val saysPickup = pickupWordRegex.containsMatchIn(line)
+            val saysTrip = tripWordRegex.containsMatchIn(line)
+            val role = when {
+                saysPickup && !saysTrip -> LegRole.PICKUP
+                saysTrip && !saysPickup -> LegRole.TRIP
+                else -> null
+            }
+            Leg(km, minutes, role)
+        }
+
+        val labelledPickup = legs.firstOrNull { it.role == LegRole.PICKUP }
+        val labelledTrip = legs.firstOrNull { it.role == LegRole.TRIP }
+        val unlabelled = legs.filter { it.role == null }
+
+        return when {
+            labelledPickup != null && labelledTrip != null ->
+                Legs(labelledPickup, labelledTrip, "leg.label", "leg.label")
+            labelledPickup != null && unlabelled.isNotEmpty() ->
+                Legs(labelledPickup, unlabelled[0], "leg.label", "leg.other")
+            labelledTrip != null && unlabelled.isNotEmpty() ->
+                Legs(unlabelled[0], labelledTrip, "leg.other", "leg.label")
+            // No words to go on: Uber lists the pickup first.
+            unlabelled.size >= 2 ->
+                Legs(unlabelled[0], unlabelled[1], "leg.order[0]", "leg.order[1]")
+            else -> null
+        }
+    }
+
+    private fun kmOf(match: MatchResult): Double? {
+        val km = match.groupValues[1]
+        val metres = match.groupValues[2]
+        return if (km.isNotEmpty()) toDouble(km) else metres.toDoubleOrNull()?.div(1000.0)
+    }
+
+    private fun minutesOf(match: MatchResult): Double? {
+        val (hours, minutesAfterHours, minutesOnly) = match.destructured
+        return if (hours.isNotEmpty()) {
+            hours.toDouble() * 60 + (minutesAfterHours.toDoubleOrNull() ?: 0.0)
+        } else {
+            minutesOnly.toDoubleOrNull()
+        }
+    }
+
+    /** Very short legs are skipped: Uber rounds them, so "1 min (0.4 km)" can look odd but be right. */
+    private fun plausibleSpeed(km: Double?, minutes: Double?): Boolean {
+        if (km == null || minutes == null || km < 1.0 || minutes < 2.0) return true
+        val kmh = km / (minutes / 60.0)
+        return kmh in MIN_PLAUSIBLE_KMH..MAX_PLAUSIBLE_KMH
     }
 
     /** Fixes common OCR misreads before regex matching: O/o -> 0, l/I -> 1 in numeric contexts, stray commas. */
@@ -165,7 +262,7 @@ object OcrParser {
 
         // Fallback heuristic: collect all "X km" values in on-screen order. Uber offer
         // cards conventionally list pickup distance first, trip distance second.
-        val allDistances = distanceRegex.findAll(text).mapNotNull { toDouble(it.groupValues[1]) }.toList()
+        val allDistances = distanceRegex.findAll(text).mapNotNull { kmOf(it) }.toList()
         val pickup = pickupLabeled ?: allDistances.getOrNull(0)
         val trip = tripLabeled ?: allDistances.getOrNull(1) ?: allDistances.getOrNull(0)?.takeIf { allDistances.size == 1 }
 
@@ -185,7 +282,7 @@ object OcrParser {
             return ParsedField(pickupLabeled, "pickupLineRegex") to ParsedField(tripLabeled, "tripLineRegex")
         }
 
-        val allDurations = durationRegex.findAll(text).mapNotNull { toDouble(it.groupValues[1]) }.toList()
+        val allDurations = durationRegex.findAll(text).mapNotNull { minutesOf(it) }.toList()
         val pickup = pickupLabeled ?: allDurations.getOrNull(0)
         val trip = tripLabeled ?: allDurations.getOrNull(1)
 

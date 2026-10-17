@@ -45,6 +45,7 @@ fun DebugScreen(onBack: () -> Unit) {
                 FieldRow("Trip km", p.tripKm.value?.toString(), p.tripKm.matchedRule)
                 FieldRow("Pickup minutes", p.pickupMinutes.value?.toString(), p.pickupMinutes.matchedRule)
                 FieldRow("Trip minutes", p.tripMinutes.value?.toString(), p.tripMinutes.matchedRule)
+                FieldRow("Speed check", if (p.speedCheckFailed) "failed: a distance and time don't fit" else "ok", null)
                 FieldRow("Destination", p.destinationText.ifBlank { null }, null)
                 FieldRow("Airport", p.isAirport.toString(), null)
                 FieldRow("Surge", p.isSurge.toString(), null)
