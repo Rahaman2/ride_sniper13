@@ -57,8 +57,10 @@ object RideCalculator {
             preferredPerKm += BAD_RETURN_ZONE_SURCHARGE_PER_KM
         }
 
-        val requiredPerMinute = settings.minimumPerMinute
-        val preferredPerMinute = settings.preferredPerMinute
+        // With time rates switched off, the per-minute bar is zero so only per km decides.
+        val timeRates = settings.includeTimeRates
+        val requiredPerMinute = if (timeRates) settings.minimumPerMinute else 0.0
+        val preferredPerMinute = if (timeRates) settings.preferredPerMinute else 0.0
 
         val recommendation = classify(
             grossPerKm = grossPerKm,
@@ -150,7 +152,7 @@ object RideCalculator {
         if (input.pickupKm > settings.longPickupThresholdKm) flags += WarningFlag.LONG_PICKUP
         if (input.tripKm > settings.longRideThresholdKm) flags += WarningFlag.LONG_RIDE
         if (grossPerKm < requiredPerKm) flags += WarningFlag.LOW_PAY_PER_KM
-        if (grossPerMinute < requiredPerMinute) flags += WarningFlag.LOW_PAY_PER_MINUTE
+        if (settings.includeTimeRates && grossPerMinute < requiredPerMinute) flags += WarningFlag.LOW_PAY_PER_MINUTE
         if (isAirportRide) flags += WarningFlag.AIRPORT_RISK
         if (zoneRating == ZoneRating.BAD_RETURN) flags += WarningFlag.DEADHEAD_RISK
 

@@ -187,8 +187,12 @@ fun ResultCard(result: RideCalculationResult, lowConfidence: Boolean, onDismiss:
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 OverlayMetric("Per km", Fmt.money(result.grossPerKm))
-                OverlayMetric("Per min", Fmt.money(result.grossPerMinute))
-                OverlayMetric(perHourLabel(), Fmt.money(result.netPerHour))
+                if (Features.TIME_RATES) {
+                    OverlayMetric("Per min", Fmt.money(result.grossPerMinute))
+                    OverlayMetric(perHourLabel(), Fmt.money(result.netPerHour))
+                } else {
+                    OverlayMetric("Total", Fmt.km(result.totalKm))
+                }
             }
 
             Box(Modifier.fillMaxWidth().height(1.dp).background(OutlineDark))

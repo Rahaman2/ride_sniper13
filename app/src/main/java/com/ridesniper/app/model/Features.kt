@@ -11,4 +11,12 @@ object Features {
      * "you keep" profit figures and the cost lines in stats.
      */
     const val VEHICLE_COSTS = false
+
+    /**
+     * Per-minute and per-hour pay. Off for now: decisions use pay per km only.
+     * Minutes are still read from the offer and shown next to each distance.
+     * Turning this on brings back the per-minute targets, the per-minute check
+     * in TAKE/DECLINE, and the per-minute and per-hour figures on screen.
+     */
+    const val TIME_RATES = false
 }

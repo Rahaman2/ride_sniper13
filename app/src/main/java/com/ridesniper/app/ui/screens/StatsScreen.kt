@@ -47,12 +47,18 @@ fun StatsScreen(viewModel: RideSniperViewModel) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatTile("Avg per km", Fmt.money(stats.avgGrossPerKm), Modifier.weight(1f))
-            StatTile(if (Features.VEHICLE_COSTS) "Avg net / hour" else "Avg per hour", Fmt.money(stats.avgNetPerHour), Modifier.weight(1f))
+            if (Features.TIME_RATES) {
+                StatTile(if (Features.VEHICLE_COSTS) "Avg net / hour" else "Avg per hour", Fmt.money(stats.avgNetPerHour), Modifier.weight(1f))
+            } else {
+                StatTile("Avg payout", Fmt.money(stats.avgPayout), Modifier.weight(1f))
+            }
         }
 
         StatSection("Averages") {
-            StatLine("Payout", Fmt.money(stats.avgPayout))
-            StatLine("Per minute", Fmt.money(stats.avgGrossPerMinute))
+            if (Features.TIME_RATES) {
+                StatLine("Payout", Fmt.money(stats.avgPayout))
+                StatLine("Per minute", Fmt.money(stats.avgGrossPerMinute))
+            }
             if (Features.VEHICLE_COSTS) StatLine("Net per km", Fmt.money(stats.avgNetPerKm))
             StatLine("Pickup distance", Fmt.km(stats.avgPickupKm))
             StatLine("Trip distance", Fmt.km(stats.avgTripKm))

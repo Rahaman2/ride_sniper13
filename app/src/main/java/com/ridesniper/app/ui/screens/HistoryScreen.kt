@@ -146,7 +146,11 @@ private fun HistoryRow(ride: RideEntity, onMark: (Boolean) -> Unit, modifier: Mo
             )
         }
         Text(
-            "${Fmt.perKm(ride.grossPerKm)} · ${Fmt.perMinute(ride.grossPerMinute)} · ${Fmt.perHour(ride.netPerHour)}",
+            if (Features.TIME_RATES) {
+                "${Fmt.perKm(ride.grossPerKm)} · ${Fmt.perMinute(ride.grossPerMinute)} · ${Fmt.perHour(ride.netPerHour)}"
+            } else {
+                "${Fmt.perKm(ride.grossPerKm)} · pickup ${Fmt.km(ride.pickupKm)} · trip ${Fmt.km(ride.tripKm)}"
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

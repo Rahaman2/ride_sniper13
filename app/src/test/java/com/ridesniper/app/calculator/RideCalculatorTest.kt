@@ -51,6 +51,23 @@ class RideCalculatorTest {
     }
 
     @Test
+    fun `slow ride is TAKE on per km alone when time rates are off`() {
+        // R100 / 10 km = R10/km (>= 9.00). R100 / 60 min = R1.67/min is ignored because time rates are off.
+        val input = RideOfferInput(payout = 100.0, pickupKm = 2.0, tripKm = 8.0, pickupMinutes = 10.0, tripMinutes = 50.0)
+        val result = RideCalculator.calculate(input, defaultSettings.copy(includeTimeRates = false))
+        assertEquals(Recommendation.TAKE, result.recommendation)
+        assertFalse(result.warnings.contains(WarningFlag.LOW_PAY_PER_MINUTE))
+    }
+
+    @Test
+    fun `slow ride is held back by per minute when time rates are on`() {
+        // Same ride: R1.67/min is above the R1.50 minimum but below the R2.00 preferred -> MAYBE.
+        val input = RideOfferInput(payout = 100.0, pickupKm = 2.0, tripKm = 8.0, pickupMinutes = 10.0, tripMinutes = 50.0)
+        val result = RideCalculator.calculate(input, defaultSettings.copy(includeTimeRates = true))
+        assertEquals(Recommendation.MAYBE, result.recommendation)
+    }
+
+    @Test
     fun `great offer is TAKE under picky strategy`() {
         val input = RideOfferInput(payout = 120.0, pickupKm = 1.0, tripKm = 9.0, pickupMinutes = 3.0, tripMinutes = 21.0)
         // R120 / 10 km = R12.00/km (>= 9.00), R120 / 24 min = R5.00/min (>= 2.00)

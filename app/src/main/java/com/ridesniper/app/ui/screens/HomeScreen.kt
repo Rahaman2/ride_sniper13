@@ -226,7 +226,11 @@ private fun StrategyCard(settings: AppSettings, onSelect: (StrategyPreset) -> Un
         }
         Text(strategyHint(settings.strategy), style = MaterialTheme.typography.bodyMedium)
         Text(
-            "Green light from ${Fmt.perKm(settings.preferredPerKm)} and ${Fmt.perMinute(settings.preferredPerMinute)}.",
+            if (Features.TIME_RATES) {
+                "Green light from ${Fmt.perKm(settings.preferredPerKm)} and ${Fmt.perMinute(settings.preferredPerMinute)}."
+            } else {
+                "Green light from ${Fmt.perKm(settings.preferredPerKm)}."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -262,8 +266,12 @@ fun ResultHud(result: RideCalculationResult) {
 
         Row(Modifier.fillMaxWidth()) {
             Metric("Per km", Fmt.money(result.grossPerKm), Modifier.weight(1f))
-            Metric("Per min", Fmt.money(result.grossPerMinute), Modifier.weight(1f))
-            Metric(perHourLabel(), Fmt.money(result.netPerHour), Modifier.weight(1f))
+            if (Features.TIME_RATES) {
+                Metric("Per min", Fmt.money(result.grossPerMinute), Modifier.weight(1f))
+                Metric(perHourLabel(), Fmt.money(result.netPerHour), Modifier.weight(1f))
+            } else {
+                Metric("Total", Fmt.km(result.totalKm), Modifier.weight(1f))
+            }
         }
 
         if (result.warnings.isNotEmpty()) {

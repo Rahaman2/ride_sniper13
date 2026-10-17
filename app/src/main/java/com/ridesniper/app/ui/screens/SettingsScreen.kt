@@ -57,7 +57,11 @@ fun SettingsScreen(viewModel: RideSniperViewModel, onOpenDebug: () -> Unit) {
             }
         }
 
-        SettingsSection("Pay targets", "TAKE needs both preferred rates. Below the minimum is DECLINE.") {
+        SettingsSection(
+            "Pay targets",
+            if (Features.TIME_RATES) "TAKE needs both preferred rates. Below the minimum is DECLINE."
+            else "At or above preferred is TAKE. Below the minimum is DECLINE. In between is MAYBE."
+        ) {
             NumberSettingField(
                 "Preferred per km", settings.preferredPerKm, unit = perKm, validRange = 0.0..100.0,
                 onSave = saver("Preferred per km") { s, v -> s.copy(preferredPerKm = v) }
@@ -70,14 +74,16 @@ fun SettingsScreen(viewModel: RideSniperViewModel, onOpenDebug: () -> Unit) {
                 "Never below (hard decline)", settings.hardDeclinePerKm, unit = perKm, validRange = 0.0..100.0,
                 onSave = saver("Hard decline") { s, v -> s.copy(hardDeclinePerKm = v) }
             )
-            NumberSettingField(
-                "Preferred per minute", settings.preferredPerMinute, unit = "R/min", validRange = 0.0..50.0,
-                onSave = saver("Preferred per minute") { s, v -> s.copy(preferredPerMinute = v) }
-            )
-            NumberSettingField(
-                "Minimum per minute", settings.minimumPerMinute, unit = "R/min", validRange = 0.0..50.0,
-                onSave = saver("Minimum per minute") { s, v -> s.copy(minimumPerMinute = v) }
-            )
+            if (Features.TIME_RATES) {
+                NumberSettingField(
+                    "Preferred per minute", settings.preferredPerMinute, unit = "R/min", validRange = 0.0..50.0,
+                    onSave = saver("Preferred per minute") { s, v -> s.copy(preferredPerMinute = v) }
+                )
+                NumberSettingField(
+                    "Minimum per minute", settings.minimumPerMinute, unit = "R/min", validRange = 0.0..50.0,
+                    onSave = saver("Minimum per minute") { s, v -> s.copy(minimumPerMinute = v) }
+                )
+            }
         }
 
         SettingsSection("Ride length") {
